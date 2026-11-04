@@ -25,9 +25,23 @@ const email = `smoke_${Date.now()}@test.dev`;
 let r = await call('/health');
 check('GET /health', r.status === 200 && r.data.ok);
 
+// 1b. Skills database catalog
+r = await call('/skills');
+check('GET /skills', r.status === 200 && Array.isArray(r.data.skills));
+
 // 2. Register
-r = await call('/auth/register', { method: 'POST', body: { name: 'Smoke Tester', email, password: 'secret123' } });
-check('POST /auth/register', r.status === 201 && r.data.token, JSON.stringify(r.data));
+r = await call('/auth/register', {
+  method: 'POST',
+  body: {
+    name: 'Smoke Tester',
+    email,
+    password: 'secret123',
+    role: 'student',
+    department: 'CSE (AIML)',
+    college: "Bharati Vidyapeeth's College of Engineering, Kolhapur",
+  },
+});
+check('POST /auth/register', r.status === 201 && r.data.token && r.data.user.role === 'student', JSON.stringify(r.data));
 const token = r.data?.token;
 
 // 2b. Duplicate email rejected
@@ -53,7 +67,10 @@ r = await call('/profile', { method: 'PUT', token, body: {
   interests: ['web development', 'ai'],
   experienceYears: 1,
   targetRole: 'Full-Stack Developer',
-  education: [{ degree: 'B.Tech CSE', institution: 'Some University', year: '2027' }],
+  education: [{ degree: 'B.Tech CSE', institution: 'Some University', year: '2027', cgpa: 8.4 }],
+  projects: [{ title: 'E-commerce Store', description: 'React and Node.js store', technologies: ['React', 'Node.js'] }],
+  certifications: [{ title: 'AWS Cloud Practitioner', issuer: 'Amazon' }],
+  internships: [{ role: 'Web Development Intern', company: 'Acme Pvt Ltd', duration: '6 months' }],
 } });
 check('PUT /profile', r.status === 200 && r.data.profile.skills.length === 6, JSON.stringify(r.data));
 
@@ -113,11 +130,40 @@ check('GET /careers/roadmaps/:id', r.status === 200 && r.data.roadmap.targetRole
 r = await call('/careers/roadmap', { method: 'POST', token, body: { targetRole: 'x' } });
 check('roadmap short role → 400', r.status === 400);
 
-// 7. Interview
+// 6c. Career Readiness Assessment (Module 4)
+r = await call('/careers/readiness', { method: 'POST', token, body: { targetRole: 'Full-Stack Developer' } });
+check('POST /careers/readiness', r.status === 201 && typeof r.data.readiness.careerReadinessScore === 'number');
+
+r = await call('/careers/readiness', { token });
+check('GET /careers/readiness', r.status === 200 && Array.isArray(r.data.reports) && r.data.reports.length >= 1);
+
+// 7. Live Jobs — Restricted strictly to LinkedIn and Remotive (no Adzuna, no search links)
+r = await call('/jobs?role=Developer', { token });
+check('GET /jobs restriction', r.status === 200 && Array.isArray(r.data.jobs) && (r.data.links?.length === 0));
+const jobsAllowed = (r.data.jobs || []).every((j) => j.source === 'LinkedIn' || j.source === 'Remotive');
+check('jobs are ONLY LinkedIn or Remotive', jobsAllowed);
+
+// 7b. Job Application Tracking (Module 7)
+r = await call('/jobs/applications', {
+  method: 'POST',
+  token,
+  body: { jobTitle: 'Full-Stack Developer', company: 'CloudScale Global', source: 'Remotive', status: 'applied' },
+});
+check('POST /jobs/applications', r.status === 201 && r.data.application.status === 'applied');
+const appId = r.data?.application?.id || r.data?.application?._id;
+
+r = await call('/jobs/applications', { token });
+check('GET /jobs/applications', r.status === 200 && r.data.applications.length >= 1);
+
+if (appId) {
+  r = await call(`/jobs/applications/${appId}`, { method: 'PATCH', token, body: { status: 'interviewing' } });
+  check('PATCH /jobs/applications/:id', r.status === 200 && r.data.application.status === 'interviewing');
+}
+
+// 8. Interview
 r = await call('/interview/sessions', { method: 'POST', token, body: { role: 'Frontend Developer', difficulty: 'medium' } });
 check('POST /interview/sessions', r.status === 201 && r.data.session.questions.length >= 4, JSON.stringify(r.data).slice(0, 200));
 const sessionId = r.data?.session?.id;
-const qCount = r.data?.session?.questions?.length || 5;
 
 r = await call(`/interview/sessions/${sessionId}/answer`, { method: 'POST', token, body: {
   questionIndex: 0,
@@ -128,11 +174,28 @@ check('POST /interview/sessions/:id/answer', r.status === 200 && typeof r.data.f
 r = await call('/interview/sessions', { token });
 check('GET /interview/sessions', r.status === 200 && r.data.sessions.length === 1);
 
-// 8. Dashboard
+// 8b. Peer Interview Experiences (Module 6)
+r = await call('/interview/experiences', {
+  method: 'POST',
+  token,
+  body: {
+    company: 'TechCorp Solutions',
+    role: 'Frontend Developer',
+    difficulty: 'medium',
+    tips: ['Focus on React fundamentals and state management'],
+    outcome: 'selected',
+  },
+});
+check('POST /interview/experiences', r.status === 201 && r.data.experience.company === 'TechCorp Solutions');
+
+r = await call('/interview/experiences', { token });
+check('GET /interview/experiences', r.status === 200 && r.data.experiences.length >= 1);
+
+// 9. Dashboard
 r = await call('/dashboard', { token });
 check('GET /dashboard', r.status === 200 && r.data.stats.resumesAnalyzed === 1 && r.data.stats.careerMatches === 1, JSON.stringify(r.data).slice(0, 200));
 
-// 9. 404 route
+// 10. 404 route
 r = await call('/nope');
 check('unknown route → 404', r.status === 404);
 

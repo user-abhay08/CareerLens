@@ -1,23 +1,33 @@
 import Recommendation from '../models/Recommendation.js';
 import Roadmap from '../models/Roadmap.js';
 import Profile from '../models/Profile.js';
+import ResumeAnalysis from '../models/ResumeAnalysis.js';
+import CareerReadiness from '../models/CareerReadiness.js';
 import { generateJSON } from './ai/index.js';
-import { careerRecommendationPrompt, roadmapPrompt } from './ai/prompts.js';
-import { fallbackRecommendations, fallbackRoadmap, normalizeSkill } from './fallback.js';
+import { careerRecommendationPrompt, roadmapPrompt, careerReadinessPrompt } from './ai/prompts.js';
+import { fallbackRecommendations, fallbackRoadmap, fallbackCareerReadiness, normalizeSkill } from './fallback.js';
 import { asString, asArray, asStringArray, asNumber, clamp } from '../utils/sanitize.js';
 
 function sanitizeCareers(d) {
   return asArray(d.careers)
     .slice(0, 8)
-    .map((c) => ({
-      title: asString(c?.title),
-      matchScore: clamp(asNumber(c?.matchScore, 0), 0, 100),
-      description: asString(c?.description),
-      reasons: asStringArray(c?.reasons, 5),
-      skillsToLearn: asStringArray(c?.skillsToLearn, 8),
-      salaryRange: asString(c?.salaryRange),
-      demand: asString(c?.demand, 'Medium'),
-    }))
+    .map((c) => {
+      const skillsToLearn = asStringArray(c?.skillsToLearn, 8);
+      return {
+        title: asString(c?.title),
+        matchScore: clamp(asNumber(c?.matchScore, 0), 0, 100),
+        description: asString(c?.description),
+        reasons: asStringArray(c?.reasons, 5),
+        skillsToLearn,
+        matchingSkills: asStringArray(c?.matchingSkills, 8),
+        missingCompetencies: asStringArray(c?.missingCompetencies || skillsToLearn, 8),
+        salaryRange: asString(c?.salaryRange),
+        demand: asString(c?.demand, 'Medium'),
+        recommendedCourses: asStringArray(c?.recommendedCourses, 5),
+        recommendedCertifications: asStringArray(c?.recommendedCertifications, 4),
+        recommendedProjects: asStringArray(c?.recommendedProjects, 4),
+      };
+    })
     .filter((c) => c.title)
     .sort((a, b) => b.matchScore - a.matchScore);
 }
@@ -102,6 +112,65 @@ export async function buildRoadmap({ user, targetRole }) {
     currentSkills: profile.skills || [],
     missingSkills: asStringArray(data.missingSkills, 12),
     phases: sanitizePhases(data),
+    recommendedCourses: asArray(data.recommendedCourses).slice(0, 5),
+    recommendedCertifications: asArray(data.recommendedCertifications).slice(0, 5),
+    recommendedProjects: asArray(data.recommendedProjects).slice(0, 5),
   });
   return { roadmap: doc, notice };
+}
+
+/**
+ * Module 4: Career Readiness Assessment Engine
+ * Evaluates candidate preparedness across 7 dimensions using Explainable AI principles.
+ */
+export async function assessCareerReadiness({ user, targetRole }) {
+  const profile = (await Profile.findOne({ user }).lean()) || {};
+  const latestResume = await ResumeAnalysis.findOne({ user }).sort({ createdAt: -1 }).lean();
+  const role = targetRole || profile.targetRole || 'Software Engineer';
+
+  const prompt = careerReadinessPrompt({ profile, targetRole: role, resumeAnalysis: latestResume });
+
+  let result;
+  let provider = 'fallback';
+  let notice;
+  try {
+    const { data, provider: p } = await generateJSON(prompt.system, prompt.user, { temperature: 0.3 });
+    result = {
+      careerReadinessScore: clamp(asNumber(data.careerReadinessScore, 65), 0, 100),
+      breakdown: {
+        resumeQuality: clamp(asNumber(data.breakdown?.resumeQuality, 65), 0, 100),
+        technicalCompetencies: clamp(asNumber(data.breakdown?.technicalCompetencies, 65), 0, 100),
+        projectExperience: clamp(asNumber(data.breakdown?.projectExperience, 65), 0, 100),
+        certifications: clamp(asNumber(data.breakdown?.certifications, 65), 0, 100),
+        internships: clamp(asNumber(data.breakdown?.internships, 65), 0, 100),
+        academicPerformance: clamp(asNumber(data.breakdown?.academicPerformance, 65), 0, 100),
+        alignmentWithIndustry: clamp(asNumber(data.breakdown?.alignmentWithIndustry, 65), 0, 100),
+      },
+      strengths: asStringArray(data.strengths, 6),
+      missingCompetencies: asStringArray(data.missingCompetencies, 6),
+      evidenceBasedRecommendations: asStringArray(data.evidenceBasedRecommendations, 6),
+      explainableSummary: asString(data.explainableSummary),
+    };
+    provider = p;
+  } catch (err) {
+    result = fallbackCareerReadiness({ profile, targetRole: role, resumeAnalysis: latestResume });
+    provider = 'fallback';
+    if (err.message !== 'AI_NOT_CONFIGURED') {
+      notice = `AI request failed (${err.message.slice(0, 140)}). Served built-in readiness evaluation.`;
+    }
+  }
+
+  const doc = await CareerReadiness.create({
+    user,
+    targetRole: role,
+    careerReadinessScore: result.careerReadinessScore,
+    breakdown: result.breakdown,
+    strengths: result.strengths,
+    missingCompetencies: result.missingCompetencies,
+    evidenceBasedRecommendations: result.evidenceBasedRecommendations,
+    explainableSummary: result.explainableSummary,
+    provider,
+  });
+
+  return { readiness: doc, notice };
 }

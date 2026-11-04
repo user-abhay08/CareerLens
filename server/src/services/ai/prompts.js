@@ -13,6 +13,7 @@ Analyze the resume and return JSON exactly in this shape:
 {
   "summary": "2-3 sentence overall assessment",
   "atsScore": 0-100 integer estimating how well this resume passes ATS screening,
+  "resumeQualityScore": 0-100 integer evaluating resume quality and formatting,
   "strengths": ["3-6 specific strengths, each one sentence"],
   "weaknesses": ["3-6 specific weaknesses or red flags, each one sentence"],
   "missingSkills": ["5-10 in-demand skills missing from this resume for the target direction"],
@@ -76,6 +77,32 @@ Return exactly 4 phases progressing from foundations to job readiness. Tailor to
 Candidate already knows: ${profile.skills?.join(', ') || 'nothing listed — assume complete beginner'}
 Interests: ${profile.interests?.join(', ') || 'not specified'}
 Experience: ${profile.experienceYears || 0} years`,
+  };
+}
+
+export function careerReadinessPrompt({ profile, targetRole, resumeAnalysis }) {
+  return {
+    system: `${ANALYST_PERSONA}\n${JSON_RULE}
+Evaluate candidate readiness for ${targetRole} following Explainable AI principles across 7 dimensions:
+resumeQuality, technicalCompetencies, projectExperience, certifications, internships, academicPerformance, alignmentWithIndustry.
+Return JSON in this shape:
+{
+  "careerReadinessScore": 0-100 integer overall readiness,
+  "breakdown": {
+    "resumeQuality": 0-100,
+    "technicalCompetencies": 0-100,
+    "projectExperience": 0-100,
+    "certifications": 0-100,
+    "internships": 0-100,
+    "academicPerformance": 0-100,
+    "alignmentWithIndustry": 0-100
+  },
+  "strengths": ["3-5 concrete strengths"],
+  "missingCompetencies": ["3-6 missing skills or gaps"],
+  "evidenceBasedRecommendations": ["3-5 clear, evidence-based action items"],
+  "explainableSummary": "2-4 sentences explaining the readiness score and reasoning"
+}`,
+    user: `Target role: ${targetRole}\nProfile: ${JSON.stringify(profile)}\nLatest resume analysis: ${resumeAnalysis ? JSON.stringify(resumeAnalysis.result) : 'None'}`,
   };
 }
 

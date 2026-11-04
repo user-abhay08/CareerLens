@@ -26,6 +26,12 @@ const interviewSessionSchema = new mongoose.Schema(
     user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
     role: { type: String, required: true },
     difficulty: { type: String, enum: ['easy', 'medium', 'hard'], default: 'medium' },
+    companyTarget: { type: String, trim: true, default: '' },
+    category: {
+      type: String,
+      enum: ['technical', 'hr', 'aptitude', 'general'],
+      default: 'technical',
+    },
     provider: { type: String, default: 'fallback' },
     status: { type: String, enum: ['open', 'completed'], default: 'open' },
     questions: { type: [questionSchema], default: [] },

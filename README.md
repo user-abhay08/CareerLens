@@ -16,7 +16,7 @@ heuristic engine keeps every feature working, so the app is always demoable.
 |---|---|
 | 📄 **Resume Analyzer** | Upload a PDF or paste text → ATS score, strengths, weaknesses, missing skills, ATS keywords, suggested roles, and rewritten bullet points |
 | 🎯 **Career Matching** | Top 5 careers ranked by fit with your skills/interests, with match %, reasons, salary range and demand signal |
-| 💼 **Live job listings** | Real openings per role with one-click "Apply on portal" links. Provider chain: JSearch (RapidAPI — includes **LinkedIn**, Indeed, Glassdoor) → Adzuna (India market) → Remotive (remote, no key needed) → deep search links into LinkedIn / Naukri / Indeed |
+| 💼 **Live job listings** | Real openings per role with one-click "Apply on portal" links. Restricted strictly to verified **LinkedIn** and **Remotive** listings. |
 | 🗺️ **Skill Roadmap** | Pick any target role → 4-phase learning plan (weeks 1–20) that skips what you already know, with free resources and milestones |
 | 🎤 **Interview Prep** | Role-specific question sets (easy/medium/hard) → answer in your own words → instant score /10, strengths, improvements and a polished model answer |
 | 📊 **Dashboard** | Aggregated progress: resumes analyzed, latest ATS score, top career match, active roadmap, average interview score |

@@ -11,8 +11,8 @@ import env from '../../config/env.js';
 
 const API_BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
 
-// Used only when the primary model returns a capacity error.
-const FALLBACK_MODELS = ['gemini-flash-lite-latest', 'gemini-2.5-flash-lite'];
+// Used only when the primary model returns a capacity or availability error.
+const FALLBACK_MODELS = ['gemini-3.5-flash-lite', 'gemini-2.5-flash', 'gemini-3.7-flash'];
 
 export function isConfigured() {
   return Boolean(env.gemini.apiKey);
@@ -53,7 +53,7 @@ async function callModel(model, { system, user, temperature, timeoutMs }) {
   }
 }
 
-export async function chat({ system, user, temperature = 0.4, timeoutMs = 60000 }) {
+export async function chat({ system, user, temperature = 0.4, timeoutMs = 20000 }) {
   const models = [env.gemini.model, ...FALLBACK_MODELS.filter((m) => m !== env.gemini.model)];
   let lastError;
   for (const model of models) {
@@ -61,9 +61,9 @@ export async function chat({ system, user, temperature = 0.4, timeoutMs = 60000 
       return await callModel(model, { system, user, temperature, timeoutMs });
     } catch (err) {
       lastError = err;
-      const capacityIssue = /\b(429|500|503)\b|overloaded|high demand|quota/i.test(err.message);
-      if (!capacityIssue) throw err;
-      console.warn(`[ai] ${model} unavailable (capacity), trying next model…`);
+      const isRetryable = /\b(429|500|503)\b|overloaded|high demand|quota|abort|timeout|empty response/i.test(err.message);
+      if (!isRetryable) throw err;
+      console.warn(`[ai] ${model} unavailable (${err.message.slice(0, 60)}), trying next model…`);
     }
   }
   throw lastError;

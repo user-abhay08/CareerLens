@@ -5,9 +5,6 @@ import { api } from '../api';
 const sourceTint = (s) => {
   const n = String(s || '').toLowerCase();
   if (n.includes('linkedin')) return 'bg-sky-100 text-sky-800 ring-sky-300 font-bold';
-  if (n.includes('indeed')) return 'bg-blue-100 text-blue-800 ring-blue-200';
-  if (n.includes('naukri')) return 'bg-purple-100 text-purple-800 ring-purple-200';
-  if (n.includes('glassdoor')) return 'bg-emerald-100 text-emerald-800 ring-emerald-200';
   if (n.includes('remotive')) return 'bg-teal-100 text-teal-800 ring-teal-200';
   return 'bg-slate-100 text-slate-700 ring-slate-200';
 };
@@ -25,9 +22,8 @@ function postedLabel(iso) {
 const EMPTY_FILTERS = { jobType: 'any', experience: 'any', postedWithin: 'any', minSalary: '', remoteOnly: false };
 
 /**
- * Live job listings for a target role. Providers run server-side
- * (JSearch/LinkedIn → Adzuna → Remotive); with none configured, shows direct
- * apply links into LinkedIn / Naukri / Indeed searches.
+ * Live job listings for a target role.
+ * Strictly restricted to LinkedIn and Remotive providers only.
  */
 export default function LiveJobs({ role, autoSearchKey = 0 }) {
   const [searchRole, setSearchRole] = useState(role || '');
@@ -79,8 +75,8 @@ export default function LiveJobs({ role, autoSearchKey = 0 }) {
   return (
     <section className="card p-6">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="section-title">💼 Live jobs — apply on the portal</h2>
-        {data?.source && data.source !== 'links' && (
+        <h2 className="section-title">💼 Live jobs — LinkedIn & Remotive</h2>
+        {data?.source && data.source !== 'none' && data?.jobs?.length > 0 && (
           <span className="chip">source: {data.source}{data.cached ? ' · cached' : ''}</span>
         )}
       </div>
@@ -162,13 +158,12 @@ export default function LiveJobs({ role, autoSearchKey = 0 }) {
       )}
 
       {error && <p className="banner-error mt-4">{error}</p>}
-      {loading && <Loading label="Fetching live listings…" />}
+      {loading && <Loading label="Fetching live listings from LinkedIn & Remotive…" />}
 
-      {!loading && data?.source && data.source !== 'jsearch' && data.source !== 'links' && (
+      {!loading && data?.jobs?.length > 0 && !data.hasLinkedIn && (
         <p className="banner-warn mt-4">
-          Showing <b>{data.source}</b> listings. Want <b>LinkedIn</b> postings inline? Add a free{' '}
-          <b>RAPIDAPI_KEY</b> (JSearch) to <code className="rounded bg-amber-100 px-1 font-mono text-xs">server/.env</code> — see README.
-          Naukri offers no API, so its listings open directly on naukri.com via the links below when no provider matches.
+          Showing <b>Remotive</b> listings. To also fetch live <b>LinkedIn</b> postings inline, configure{' '}
+          <b>RAPIDAPI_KEY</b> in <code className="rounded bg-amber-100 px-1 font-mono text-xs">server/.env</code>.
         </p>
       )}
 
@@ -185,40 +180,28 @@ export default function LiveJobs({ role, autoSearchKey = 0 }) {
               </div>
               {j.salary && <p className="mt-1.5 text-xs font-semibold text-emerald-700">💰 {j.salary}</p>}
               {j.snippet && <p className="mt-1.5 text-xs leading-relaxed text-slate-500">{j.snippet}…</p>}
-              <div className="mt-3 flex items-center gap-3">
-                <a href={j.url} target="_blank" rel="noopener noreferrer" className="btn-primary !px-4 !py-1.5 text-xs">
-                  Apply on {j.source} ↗
-                </a>
-                <span className="text-[11px] text-slate-400">{postedLabel(j.posted)}</span>
+              <div className="mt-3 flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <a href={j.url} target="_blank" rel="noopener noreferrer" className="btn-primary !px-4 !py-1.5 text-xs">
+                    Apply on {j.source} ↗
+                  </a>
+                  <span className="text-[11px] text-slate-400">{postedLabel(j.posted)}</span>
+                </div>
               </div>
             </div>
           ))}
         </div>
       )}
 
-      {!loading && data?.source === 'links' && (
-        <div className="mt-5">
-          <p className="text-sm text-slate-500">
-            No inline listings available for <span className="font-semibold text-slate-700">{searchRole}</span> — apply directly on the portals
-            (pre-filled for this role):
-          </p>
-          <div className="mt-3 grid gap-3 sm:grid-cols-2">
-            {data.links.map((l) => (
-              <a key={l.name} href={l.url} target="_blank" rel="noopener noreferrer" className="card card-hover flex items-center justify-between p-4">
-                <span className="text-sm font-bold text-slate-800">Search “{searchRole}” on {l.name}</span>
-                <span className="text-indigo-600">↗</span>
-              </a>
-            ))}
-          </div>
-          <p className="mt-4 text-xs text-slate-400">
-            Tip: add a free <span className="font-semibold">RAPIDAPI_KEY</span> (JSearch) in <code className="rounded bg-slate-100 px-1">server/.env</code> to see
-            live <b>LinkedIn</b> / Indeed / Glassdoor listings inline.
-          </p>
+      {!loading && data && data.jobs?.length === 0 && (
+        <div className="mt-5 rounded-xl bg-slate-50 p-6 text-center ring-1 ring-slate-200">
+          <p className="text-sm font-semibold text-slate-700">No jobs found on LinkedIn or Remotive</p>
+          <p className="mt-1 text-xs text-slate-400">Try adjusting your search keywords, location, or filter criteria.</p>
         </div>
       )}
 
       {!loading && !data && !error && (
-        <p className="mt-5 text-sm text-slate-400">Search a role to see live openings and apply links.</p>
+        <p className="mt-5 text-sm text-slate-400">Search a role to view LinkedIn and Remotive openings.</p>
       )}
     </section>
   );

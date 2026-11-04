@@ -29,6 +29,12 @@ export function errorHandler(err, req, res, next) {
   } else if (err.name === 'CastError') {
     status = 400;
     message = 'Invalid id format';
+  } else if (err.name === 'MulterError') {
+    status = 400;
+    message = err.code === 'LIMIT_FILE_SIZE' ? 'File too large — max 5 MB' : (err.message || 'File upload failed');
+  } else if (err.message === 'Only PDF or text files are supported') {
+    status = 400;
+    message = err.message;
   }
 
   if (status >= 500) console.error('[error]', err);

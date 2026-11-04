@@ -2,9 +2,10 @@ import { Router } from 'express';
 import { z } from 'zod';
 import Recommendation from '../models/Recommendation.js';
 import Roadmap from '../models/Roadmap.js';
+import CareerReadiness from '../models/CareerReadiness.js';
 import { requireAuth } from '../middleware/auth.js';
 import { AppError } from '../middleware/errors.js';
-import { recommendCareers, buildRoadmap } from '../services/career.service.js';
+import { recommendCareers, buildRoadmap, assessCareerReadiness } from '../services/career.service.js';
 
 const router = Router();
 
@@ -50,6 +51,38 @@ router.get('/roadmaps/:id', requireAuth, async (req, res, next) => {
     const roadmap = await Roadmap.findOne({ _id: req.params.id, user: req.user.id });
     if (!roadmap) throw AppError('Roadmap not found', 404);
     res.json({ roadmap });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/** Module 4: Career Readiness Assessment Engine */
+router.post('/readiness', requireAuth, async (req, res, next) => {
+  try {
+    const { targetRole } = z
+      .object({ targetRole: z.string().trim().max(120).optional() })
+      .parse(req.body || {});
+    const { readiness, notice } = await assessCareerReadiness({ user: req.user.id, targetRole });
+    res.status(201).json({ readiness, notice: notice || null });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.get('/readiness', requireAuth, async (req, res, next) => {
+  try {
+    const reports = await CareerReadiness.find({ user: req.user.id }).sort({ createdAt: -1 }).limit(20);
+    res.json({ reports });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.get('/readiness/:id', requireAuth, async (req, res, next) => {
+  try {
+    const report = await CareerReadiness.findOne({ _id: req.params.id, user: req.user.id });
+    if (!report) throw AppError('Career readiness report not found', 404);
+    res.json({ report });
   } catch (err) {
     next(err);
   }

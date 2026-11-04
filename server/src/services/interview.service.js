@@ -16,7 +16,7 @@ function sanitizeQuestions(d) {
     .filter((q) => q.question);
 }
 
-export async function createInterviewSession({ user, role, difficulty }) {
+export async function createInterviewSession({ user, role, difficulty, companyTarget = '', category = 'technical' }) {
   const profile = await Profile.findOne({ user }).lean();
   const prompt = interviewQuestionsPrompt({ role, difficulty, profile });
 
@@ -39,7 +39,15 @@ export async function createInterviewSession({ user, role, difficulty }) {
     provider = 'fallback';
   }
 
-  const session = await InterviewSession.create({ user, role, difficulty, provider, questions });
+  const session = await InterviewSession.create({
+    user,
+    role,
+    difficulty,
+    companyTarget,
+    category,
+    provider,
+    questions,
+  });
   return { session, notice };
 }
 
@@ -58,36 +66,42 @@ export async function gradeAnswer({ user, sessionId, questionIndex, answer }) {
     throw err;
   }
 
+  const prompt = answerFeedbackPrompt({
+    role: session.role,
+    question: question.question,
+    sampleAnswer: question.sampleAnswer,
+    answer,
+  });
+
   let feedback;
-  let provider = 'fallback';
   let notice;
   try {
-    const prompt = answerFeedbackPrompt({ role: session.role, question: question.question, sampleAnswer: question.sampleAnswer, answer });
-    const { data, provider: p } = await generateJSON(prompt.system, prompt.user, { temperature: 0.3 });
+    const { data } = await generateJSON(prompt.system, prompt.user, { temperature: 0.2 });
     feedback = {
       score: clamp(asNumber(data.score, 5), 0, 10),
-      strengths: asStringArray(data.strengths, 5),
-      improvements: asStringArray(data.improvements, 5),
+      strengths: asStringArray(data.strengths, 4),
+      improvements: asStringArray(data.improvements, 4),
       improvedAnswer: asString(data.improvedAnswer),
     };
-    provider = p;
   } catch (err) {
-    if (err.message === 'AI_NOT_CONFIGURED') {
-      feedback = fallbackAnswerFeedback({ answer, question: question.question });
-    } else {
-      console.warn(`[ai] answer feedback failed, using fallback: ${err.message}`);
-      feedback = fallbackAnswerFeedback({ answer, question: question.question });
-      notice = `AI request failed (${err.message.slice(0, 140)}). Served built-in grading instead.`;
+    feedback = fallbackAnswerFeedback({ answer, question: question.question });
+    if (err.message !== 'AI_NOT_CONFIGURED') {
+      notice = `AI grading failed (${err.message.slice(0, 140)}). Served heuristic feedback.`;
     }
-    provider = 'fallback';
   }
 
-  const answerDoc = { questionIndex: qIndex, answer, ...feedback };
-  const existing = session.answers.findIndex((a) => a.questionIndex === qIndex);
-  if (existing >= 0) session.answers[existing] = answerDoc;
-  else session.answers.push(answerDoc);
-  if (session.answers.length >= session.questions.length) session.status = 'completed';
-  await session.save();
+  const existingAnswerIdx = session.answers.findIndex((a) => a.questionIndex === qIndex);
+  const entry = { questionIndex: qIndex, answer, ...feedback };
+  if (existingAnswerIdx >= 0) {
+    session.answers[existingAnswerIdx] = entry;
+  } else {
+    session.answers.push(entry);
+  }
 
+  if (session.answers.length >= session.questions.length) {
+    session.status = 'completed';
+  }
+
+  await session.save();
   return { session, feedback, notice };
 }

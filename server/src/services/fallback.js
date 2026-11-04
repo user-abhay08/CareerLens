@@ -117,12 +117,24 @@ export function fallbackResumeAnalysis({ resumeText, profile, roleContext }) {
   return {
     summary: `Heuristic analysis (no AI key configured): ${words.length} words, ${knownSkills.size} skill keywords detected, ATS-style score ${atsScore}/100. Add GEMINI_API_KEY to server/.env for a full AI review.`,
     atsScore,
+    resumeQualityScore: atsScore,
     strengths: passed.map((c) => c.strength).slice(0, 6),
     weaknesses,
     missingSkills,
     keywords: [...knownSkills].slice(0, 12),
     suggestedRoles: fallbackRecommendations({ skills: [...knownSkills], interests: profile?.interests, targetRole: roleContext || profile?.targetRole }).map((c) => c.title),
     rewrittenBullets: weakBullets,
+    structuredCandidateProfile: {
+      educationalQualifications: profile?.education || [],
+      technicalSkills: [...knownSkills],
+      softSkills: ['Communication', 'Problem Solving', 'Team Collaboration'],
+      projects: profile?.projects || [],
+      certifications: profile?.certifications || [],
+      internships: profile?.internships || [],
+      workExperience: profile?.experience || [],
+      achievements: profile?.achievements || [],
+      extracurricularActivities: profile?.extracurricularActivities || [],
+    },
   };
 }
 
@@ -233,5 +245,81 @@ export function fallbackAnswerFeedback({ answer, question }) {
     strengths: strengths.slice(0, 4),
     improvements: improvements.slice(0, 4),
     improvedAnswer: `${text.replace(/\s+/g, ' ').trim()} (Fallback mode — add an AI key for a fully rewritten model answer. Consider adding: situation context, the specific actions YOU took, and a quantified result for "${(question || '').slice(0, 80)}")`,
+  };
+}
+
+/**
+ * Explainable Career Readiness Assessment (Module 4) in fallback mode.
+ * Evaluates candidate preparedness across 7 dimensions.
+ */
+export function fallbackCareerReadiness({ profile = {}, targetRole = '', resumeAnalysis = null }) {
+  const roleName = targetRole || profile.targetRole || 'Software Engineer';
+  const userSkills = normalizeSet(profile.skills || profile.technicalSkills || []);
+  const career = CAREERS.find((c) => normalizeSkill(c.title) === normalizeSkill(roleName));
+  const requiredSkills = career ? career.skills : ['Core Programming', 'Data Structures', 'Git', 'Problem Solving', 'System Design'];
+
+  const matched = intersect(userSkills, requiredSkills);
+  const missing = requiredSkills.filter((s) => !userSkills.has(normalizeSkill(s)));
+
+  const technicalCompetencies = Math.min(100, Math.round((matched.length / Math.max(1, requiredSkills.length)) * 80 + 20));
+  const resumeQuality = resumeAnalysis?.result?.resumeQualityScore || resumeAnalysis?.result?.atsScore || (profile.headline ? 75 : 60);
+
+  const projectCount = (profile.projects || []).length;
+  const projectExperience = Math.min(100, Math.round(projectCount >= 3 ? 90 : projectCount === 2 ? 78 : projectCount === 1 ? 65 : 45));
+
+  const certCount = (profile.certifications || []).length;
+  const certifications = Math.min(100, Math.round(certCount >= 2 ? 88 : certCount === 1 ? 72 : 50));
+
+  const internCount = (profile.internships || []).length + (profile.experience || []).length;
+  const internships = Math.min(100, Math.round(internCount >= 2 ? 90 : internCount === 1 ? 75 : 48));
+
+  const cgpa = profile.academicPerformance?.cgpa || profile.education?.[0]?.cgpa;
+  const academicPerformance = cgpa ? Math.min(100, Math.round(cgpa >= 8.5 ? 92 : cgpa >= 7.5 ? 82 : cgpa >= 6.5 ? 72 : 60)) : 75;
+
+  const alignmentWithIndustry = Math.min(100, Math.round(technicalCompetencies * 0.4 + projectExperience * 0.3 + internships * 0.3));
+
+  const careerReadinessScore = Math.min(
+    100,
+    Math.round(
+      resumeQuality * 0.15 +
+      technicalCompetencies * 0.25 +
+      projectExperience * 0.20 +
+      certifications * 0.10 +
+      internships * 0.15 +
+      academicPerformance * 0.15
+    )
+  );
+
+  const strengths = [];
+  if (matched.length) strengths.push(`Verified competency in key target skills: ${matched.slice(0, 4).join(', ')}`);
+  if (resumeQuality >= 70) strengths.push(`Strong ATS-compatible resume profile (Score: ${resumeQuality}/100)`);
+  if (projectCount > 0) strengths.push(`Demonstrated hands-on experience through ${projectCount} project(s)`);
+  if (academicPerformance >= 80) strengths.push('Consistent academic track record');
+  if (!strengths.length) strengths.push('Active career development orientation and profile setup');
+
+  const missingCompetencies = missing.slice(0, 6);
+  if (!missingCompetencies.length) missingCompetencies.push('Advanced system architecture & high-scale optimization');
+
+  const recommendations = [];
+  if (missing.length) recommendations.push(`Bridge skill gaps by learning: ${missing.slice(0, 3).join(', ')}`);
+  if (projectCount < 2) recommendations.push(`Build and deploy an additional end-to-end portfolio project tailored to ${roleName}`);
+  if (certCount === 0) recommendations.push(`Obtain an industry-recognized certification in ${roleName} core technologies`);
+  if (resumeQuality < 75) recommendations.push('Refine resume bullet points with quantified results and strong action verbs');
+
+  return {
+    careerReadinessScore,
+    breakdown: {
+      resumeQuality,
+      technicalCompetencies,
+      projectExperience,
+      certifications,
+      internships,
+      academicPerformance,
+      alignmentWithIndustry,
+    },
+    strengths,
+    missingCompetencies,
+    evidenceBasedRecommendations: recommendations.slice(0, 4),
+    explainableSummary: `Based on an evaluation of your profile for ${roleName}, your overall Career Readiness Score is ${careerReadinessScore}/100. Technical skill alignment is at ${technicalCompetencies}%, resume quality is at ${resumeQuality}%, and practical project experience is at ${projectExperience}%. Following the evidence-based recommendations will accelerate placement readiness.`,
   };
 }

@@ -13,6 +13,9 @@ const registerSchema = z.object({
   name: z.string().trim().min(2, 'Name must be at least 2 characters').max(80),
   email: z.string().trim().email('Enter a valid email'),
   password: z.string().min(6, 'Password must be at least 6 characters').max(128),
+  role: z.enum(['student', 'recruiter', 'placement_coordinator', 'admin']).optional().default('student'),
+  department: z.string().trim().max(100).optional().default(''),
+  college: z.string().trim().max(160).optional().default("Bharati Vidyapeeth's College of Engineering, Kolhapur"),
 });
 
 const loginSchema = z.object({
@@ -35,8 +38,15 @@ router.get('/oauth-config', (_req, res) => {
 
 router.post('/register', async (req, res, next) => {
   try {
-    const { name, email, password } = registerSchema.parse(req.body);
-    const user = await User.create({ name, email, passwordHash: await bcrypt.hash(password, 10) });
+    const { name, email, password, role, department, college } = registerSchema.parse(req.body);
+    const user = await User.create({
+      name,
+      email,
+      passwordHash: await bcrypt.hash(password, 10),
+      role,
+      department,
+      college,
+    });
     res.status(201).json({ token: signToken(user), user: user.toPublic() });
   } catch (err) {
     next(err);
@@ -87,6 +97,7 @@ router.post('/social', async (req, res, next) => {
         name: profile.name,
         email: profile.email,
         passwordHash: unusablePasswordHash(),
+        role: 'student',
       });
     }
     res.json({ token: signToken(user), user: user.toPublic() });

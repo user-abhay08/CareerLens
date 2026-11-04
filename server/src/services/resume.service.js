@@ -9,27 +9,67 @@ import { asString, asArray, asStringArray, asNumber, clamp } from '../utils/sani
 export async function extractTextFromFile(file) {
   const isPdf = file.mimetype === 'application/pdf' || file.originalname?.toLowerCase().endsWith('.pdf');
   if (isPdf) {
-    const { default: pdfParse } = await import('pdf-parse/lib/pdf-parse.js');
-    const data = await pdfParse(file.buffer);
-    return data.text || '';
+    try {
+      const { default: pdfParse } = await import('pdf-parse/lib/pdf-parse.js');
+      const data = await pdfParse(file.buffer);
+      if (data?.text && data.text.trim()) {
+        return data.text;
+      }
+    } catch (pdfErr) {
+      console.warn(`[resume] PDF parse warning: ${pdfErr.message}`);
+    }
+
+    // Secondary fallback: attempt UTF-8 string extraction
+    try {
+      const fallbackStr = file.buffer.toString('utf8');
+      const printable = fallbackStr.replace(/[^\x20-\x7E\t\n\r]/g, ' ').replace(/\s+/g, ' ');
+      if (printable.trim().length >= 80) return printable;
+    } catch {
+      // ignore
+    }
+
+    const err = new Error('Could not extract readable text from this PDF. Please upload a standard text-based PDF or paste your resume text.');
+    err.statusCode = 400;
+    throw err;
   }
   return file.buffer.toString('utf8');
 }
 
 function sanitizeResult(d) {
+  if (!d || typeof d !== 'object') d = {};
   const bullets = asArray(d.rewrittenBullets)
     .slice(0, 5)
     .map((b) => ({ original: asString(b?.original), improved: asString(b?.improved) }))
     .filter((b) => b.original && b.improved);
+
+  const atsScore = clamp(asNumber(d.atsScore, 0), 0, 100);
+  const resumeQualityScore = clamp(asNumber(d.resumeQualityScore || d.atsScore, 0), 0, 100);
+
+  const rawStructured = d.structuredCandidateProfile && typeof d.structuredCandidateProfile === 'object'
+    ? d.structuredCandidateProfile
+    : {};
+
   return {
-    summary: asString(d.summary, 'No summary returned.'),
-    atsScore: clamp(asNumber(d.atsScore, 0), 0, 100),
+    summary: asString(d.summary, 'Resume analysis completed successfully.'),
+    atsScore,
+    resumeQualityScore,
     strengths: asStringArray(d.strengths, 8),
     weaknesses: asStringArray(d.weaknesses, 8),
     missingSkills: asStringArray(d.missingSkills, 12),
     keywords: asStringArray(d.keywords, 15),
     suggestedRoles: asStringArray(d.suggestedRoles, 6),
     rewrittenBullets: bullets,
+    structuredCandidateProfile: {
+      educationalQualifications: asArray(rawStructured.educationalQualifications || d.education),
+      technicalSkills: asStringArray(rawStructured.technicalSkills || d.technicalSkills || d.keywords, 20),
+      softSkills: asStringArray(rawStructured.softSkills || d.softSkills, 10),
+      projects: asArray(rawStructured.projects || d.projects),
+      certifications: asArray(rawStructured.certifications || d.certifications),
+      internships: asArray(rawStructured.internships || d.internships),
+      workExperience: asArray(rawStructured.workExperience || d.workExperience),
+      achievements: asStringArray(rawStructured.achievements || d.achievements, 10),
+      extracurricularActivities: asStringArray(rawStructured.extracurricularActivities || d.extracurricularActivities, 10),
+    },
   };
 }
 
@@ -48,7 +88,13 @@ export async function analyzeResume({ user, file, text, roleContext }) {
     throw err;
   }
 
-  const profile = await Profile.findOne({ user }).lean();
+  let profile = null;
+  try {
+    profile = await Profile.findOne({ user }).lean();
+  } catch (profErr) {
+    console.warn(`[resume] Profile lookup skipped: ${profErr.message}`);
+  }
+
   const prompt = resumeAnalysisPrompt({ resumeText, roleContext, profile });
 
   let result;
@@ -63,9 +109,18 @@ export async function analyzeResume({ user, file, text, roleContext }) {
       result = sanitizeResult(fallbackResumeAnalysis({ resumeText, profile, roleContext }));
     } else {
       console.warn(`[ai] resume analysis failed, using fallback: ${err.message}`);
-      result = sanitizeResult(fallbackResumeAnalysis({ resumeText, profile, roleContext }));
+      try {
+        result = sanitizeResult(fallbackResumeAnalysis({ resumeText, profile, roleContext }));
+      } catch (fbErr) {
+        console.error(`[ai] fallback generation error: ${fbErr.message}`);
+        result = sanitizeResult({});
+      }
       notice = `AI request failed (${err.message.slice(0, 140)}). Served built-in heuristic analysis instead.`;
     }
+  }
+
+  if (!result || !result.summary) {
+    result = sanitizeResult(fallbackResumeAnalysis({ resumeText, profile, roleContext }));
   }
 
   const doc = await ResumeAnalysis.create({

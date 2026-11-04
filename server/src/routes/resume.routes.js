@@ -12,18 +12,30 @@ const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 5 * 1024 * 1024 },
   fileFilter: (_req, file, cb) => {
-    const ok = file.mimetype === 'application/pdf' || file.originalname?.toLowerCase().endsWith('.pdf') || file.mimetype.startsWith('text/');
-    if (!ok) return cb(new Error('Only PDF or text files are supported'));
+    const ok = file.mimetype === 'application/pdf' || file.originalname?.toLowerCase().endsWith('.pdf') || file.mimetype?.startsWith('text/');
+    if (!ok) return cb(AppError('Only PDF or text files are supported', 400));
     cb(null, true);
   },
 });
+
+const handleUpload = (req, res, next) => {
+  upload.single('file')(req, res, (err) => {
+    if (err) {
+      if (err.code === 'LIMIT_FILE_SIZE') {
+        return next(AppError('File too large — max 5 MB', 400));
+      }
+      return next(AppError(err.message || 'Only PDF or text files are supported', 400));
+    }
+    next();
+  });
+};
 
 const textSchema = z.object({
   text: z.string().min(80, 'Paste at least a few lines of your resume text'),
   roleContext: z.string().trim().max(120).optional().default(''),
 });
 
-router.post('/analyze', requireAuth, upload.single('file'), async (req, res, next) => {
+router.post('/analyze', requireAuth, handleUpload, async (req, res, next) => {
   try {
     let text = '';
     let roleContext = '';

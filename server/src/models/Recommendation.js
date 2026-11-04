@@ -2,13 +2,18 @@ import mongoose from 'mongoose';
 
 const careerMatchSchema = new mongoose.Schema(
   {
-    title: String,
-    matchScore: Number,
-    description: String,
-    reasons: [String],
-    skillsToLearn: [String],
-    salaryRange: String,
-    demand: String,
+    title: { type: String, required: true },
+    matchScore: { type: Number, required: true },
+    description: { type: String, default: '' },
+    reasons: { type: [String], default: [] },
+    skillsToLearn: { type: [String], default: [] },
+    matchingSkills: { type: [String], default: [] },
+    missingCompetencies: { type: [String], default: [] },
+    salaryRange: { type: String, default: '' },
+    demand: { type: String, default: 'High' },
+    recommendedCourses: { type: [String], default: [] },
+    recommendedCertifications: { type: [String], default: [] },
+    recommendedProjects: { type: [String], default: [] },
   },
   { _id: false }
 );

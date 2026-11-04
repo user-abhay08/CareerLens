@@ -13,6 +13,32 @@ const phaseSchema = new mongoose.Schema(
   { _id: false }
 );
 
+const courseRecSchema = new mongoose.Schema(
+  {
+    title: String,
+    platform: String,
+    url: String,
+  },
+  { _id: false }
+);
+
+const certRecSchema = new mongoose.Schema(
+  {
+    title: String,
+    provider: String,
+  },
+  { _id: false }
+);
+
+const projectRecSchema = new mongoose.Schema(
+  {
+    title: String,
+    description: String,
+    skills: [String],
+  },
+  { _id: false }
+);
+
 const roadmapSchema = new mongoose.Schema(
   {
     user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
@@ -22,6 +48,10 @@ const roadmapSchema = new mongoose.Schema(
     currentSkills: { type: [String], default: [] },
     missingSkills: { type: [String], default: [] },
     phases: { type: [phaseSchema], default: [] },
+    // Specific recommendation categories per Synopsis Module 5
+    recommendedCourses: { type: [courseRecSchema], default: [] },
+    recommendedCertifications: { type: [certRecSchema], default: [] },
+    recommendedProjects: { type: [projectRecSchema], default: [] },
   },
   { timestamps: true }
 );
