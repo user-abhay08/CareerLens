@@ -7,33 +7,70 @@ import { groq, openrouter } from './openaiCompatible.js';
  *   1. Google Gemini  — GEMINI_API_KEY
  *   2. Groq           — GROQ_API_KEY
  *   3. OpenRouter     — OPENROUTER_API_KEY
- * When no key is configured, callers fall back to the built-in heuristic
- * engine (see services/fallback.js) so the app stays fully demoable.
+ * When no key is configured or a key is invalid, callers fall back to the built-in
+ * heuristic engine (see services/fallback.js) so the app stays fully functional.
  */
 
 const providers = { gemini: null, groq, openrouter };
 
-export async function getProvider() {
+async function ensureGeminiLoaded() {
   if (!providers.gemini) {
     providers.gemini = await import('./gemini.js');
   }
-  if (providers.gemini.isConfigured()) return providers.gemini;
+}
+
+export async function getProvider() {
+  await ensureGeminiLoaded();
+  if (providers.gemini.isConfigured() && !providers.gemini.isKnownInvalidKey()) {
+    return providers.gemini;
+  }
   if (providers.groq.isConfigured()) return providers.groq;
   if (providers.openrouter.isConfigured()) return providers.openrouter;
   return null;
 }
 
 export async function aiStatus() {
-  const provider = await getProvider();
-  if (!provider) {
+  await ensureGeminiLoaded();
+
+  if (providers.gemini.isConfigured()) {
+    const check = await providers.gemini.validateKey();
+    if (check.valid) {
+      return { enabled: true, ...providers.gemini.info() };
+    }
+    if (providers.groq.isConfigured()) return { enabled: true, ...providers.groq.info() };
+    if (providers.openrouter.isConfigured()) return { enabled: true, ...providers.openrouter.info() };
     return {
       enabled: false,
       provider: 'fallback',
+      reason: 'invalid_key',
+      configuredProvider: 'gemini',
       model: 'built-in heuristic engine',
-      note: 'No AI key configured — set GEMINI_API_KEY (or GROQ_API_KEY / OPENROUTER_API_KEY) in server/.env for AI-powered analysis.',
+      note: 'Configured GEMINI_API_KEY is invalid. Add a valid GEMINI_API_KEY in server/.env (or environment settings) and restart the server.',
     };
   }
-  return { enabled: true, ...provider.info() };
+
+  if (providers.groq.isConfigured()) return { enabled: true, ...providers.groq.info() };
+  if (providers.openrouter.isConfigured()) return { enabled: true, ...providers.openrouter.info() };
+
+  return {
+    enabled: false,
+    provider: 'fallback',
+    reason: 'missing_key',
+    model: 'built-in heuristic engine',
+    note: 'No AI key configured — set GEMINI_API_KEY (or GROQ_API_KEY / OPENROUTER_API_KEY) in server/.env for AI-powered analysis.',
+  };
+}
+
+/** Formats a clean, non-blocking fallback notice without exposing raw JSON errors. */
+export function formatAiFallbackNotice(err, fallbackLabel = 'built-in heuristic results') {
+  if (!err || err.message === 'AI_NOT_CONFIGURED' || err.code === 'AI_NOT_CONFIGURED') {
+    return undefined;
+  }
+  if (err.code === 'AI_KEY_INVALID' || /api key not valid|api_key_invalid/i.test(err.message)) {
+    return `Gemini API key is missing or invalid. Please provide a valid GEMINI_API_KEY in server/.env or environment settings — showing ${fallbackLabel} instead.`;
+  }
+  const shortReason = String(err.message || 'AI service unavailable').replace(/\s+/g, ' ').slice(0, 120);
+  return `AI service temporarily unavailable (${shortReason}). Showing ${fallbackLabel} instead.`;
 }
 
 function extractJSON(text) {
@@ -47,12 +84,19 @@ function extractJSON(text) {
 }
 
 /**
- * Generates a JSON object from the model. Retries once on parse/API failure.
+ * Generates a JSON object from the model. Retries once on parse/transient API failure.
  * @returns {Promise<{ data: object, provider: string }>}
  */
 export async function generateJSON(system, user, { temperature = 0.3 } = {}) {
   const provider = await getProvider();
-  if (!provider) throw new Error('AI_NOT_CONFIGURED');
+  if (!provider) {
+    if (providers.gemini?.isKnownInvalidKey?.()) {
+      const err = new Error('Gemini API key is invalid or expired. Please provide a valid GEMINI_API_KEY.');
+      err.code = 'AI_KEY_INVALID';
+      throw err;
+    }
+    throw new Error('AI_NOT_CONFIGURED');
+  }
 
   let lastError;
   for (let attempt = 0; attempt < 2; attempt += 1) {
@@ -65,6 +109,9 @@ export async function generateJSON(system, user, { temperature = 0.3 } = {}) {
       return { data: extractJSON(raw), provider: provider.info().provider };
     } catch (err) {
       lastError = err;
+      if (err.code === 'AI_KEY_INVALID' || err.code === 'AI_NOT_CONFIGURED') {
+        throw err;
+      }
     }
   }
   throw lastError;

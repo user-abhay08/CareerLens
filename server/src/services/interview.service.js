@@ -1,6 +1,6 @@
 import InterviewSession from '../models/InterviewSession.js';
 import Profile from '../models/Profile.js';
-import { generateJSON } from './ai/index.js';
+import { generateJSON, formatAiFallbackNotice } from './ai/index.js';
 import { interviewQuestionsPrompt, answerFeedbackPrompt } from './ai/prompts.js';
 import { fallbackInterviewQuestions, fallbackAnswerFeedback } from './fallback.js';
 import { asString, asArray, asStringArray, asNumber, clamp } from '../utils/sanitize.js';
@@ -29,13 +29,11 @@ export async function createInterviewSession({ user, role, difficulty, companyTa
     provider = p;
     if (!questions.length) throw new Error('AI returned no questions');
   } catch (err) {
-    if (err.message === 'AI_NOT_CONFIGURED') {
-      questions = fallbackInterviewQuestions({ role, difficulty }).questions;
-    } else {
+    if (err.message !== 'AI_NOT_CONFIGURED' && err.code !== 'AI_NOT_CONFIGURED') {
       console.warn(`[ai] interview questions failed, using fallback: ${err.message}`);
-      questions = fallbackInterviewQuestions({ role, difficulty }).questions;
-      notice = `AI request failed (${err.message.slice(0, 140)}). Served built-in question bank instead.`;
     }
+    questions = fallbackInterviewQuestions({ role, difficulty }).questions;
+    notice = formatAiFallbackNotice(err, 'built-in question bank');
     provider = 'fallback';
   }
 
@@ -85,9 +83,7 @@ export async function gradeAnswer({ user, sessionId, questionIndex, answer }) {
     };
   } catch (err) {
     feedback = fallbackAnswerFeedback({ answer, question: question.question });
-    if (err.message !== 'AI_NOT_CONFIGURED') {
-      notice = `AI grading failed (${err.message.slice(0, 140)}). Served heuristic feedback.`;
-    }
+    notice = formatAiFallbackNotice(err, 'heuristic interview feedback');
   }
 
   const existingAnswerIdx = session.answers.findIndex((a) => a.questionIndex === qIndex);

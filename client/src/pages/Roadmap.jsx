@@ -1,11 +1,125 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import Layout from '../components/Layout';
-import AiModeBanner from '../components/AiModeBanner';
+import AiModeBanner, { refreshAiStatus } from '../components/AiModeBanner';
 import { Loading, Spinner } from '../components/Spinner';
 import { api } from '../api';
 
-function Timeline({ phases }) {
+const FREE_PLAYLIST_TAGS = ['freeCodeCamp', 'CodeWithHarry', 'Chai aur Code'];
+
+function buildSkillLinks(skillName) {
+  return {
+    youtube: `https://www.youtube.com/results?search_query=${encodeURIComponent(`${skillName} full course tutorial`)}`,
+    coursera: `https://www.coursera.org/search?query=${encodeURIComponent(skillName)}`,
+    udemy: `https://www.udemy.com/courses/search/?q=${encodeURIComponent(skillName)}`,
+    playlistSearch: (creator) =>
+      `https://www.youtube.com/results?search_query=${encodeURIComponent(`${skillName} ${creator} playlist`)}`,
+  };
+}
+
+function YouTubeIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" className="h-3.5 w-3.5 shrink-0" aria-hidden="true">
+      <path d="M23.5 6.2a3 3 0 0 0-2.1-2.1C19.5 3.6 12 3.6 12 3.6s-7.5 0-9.4.5A3 3 0 0 0 .5 6.2C0 8.1 0 12 0 12s0 3.9.5 5.8a3 3 0 0 0 2.1 2.1c1.9.5 9.4.5 9.4.5s7.5 0 9.4-.5a3 3 0 0 0 2.1-2.1c.5-1.9.5-5.8.5-5.8s0-3.9-.5-5.8ZM9.6 15.6V8.4l6.3 3.6-6.3 3.6Z" />
+    </svg>
+  );
+}
+
+function CourseraIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-3.5 w-3.5 shrink-0" aria-hidden="true">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 3 2 8.5 12 14l10-5.5L12 3Z" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M6 11v5.5c0 1.7 2.7 3 6 3s6-1.3 6-3V11" />
+    </svg>
+  );
+}
+
+function UdemyIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-3.5 w-3.5 shrink-0" aria-hidden="true">
+      <path strokeLinecap="round" strokeLinejoin="round" d="m7 9 5-4 5 4" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M7 10v5a5 5 0 0 0 10 0v-5" />
+    </svg>
+  );
+}
+
+function CourseRecommendations({ skills, fallbackTopic, targetRole }) {
+  const rawSkills = (skills || []).filter(Boolean);
+  const resolved = rawSkills.length
+    ? rawSkills.map((s) =>
+        s.toLowerCase() === 'consolidation and practice' && targetRole ? targetRole : s
+      )
+    : [fallbackTopic || targetRole].filter(Boolean);
+  const topics = [...new Set(resolved)];
+
+  if (!topics.length) return null;
+
+  return (
+    <div className="mt-4 rounded-xl bg-slate-50/90 p-4 ring-1 ring-slate-200/80">
+      <p className="mb-3 text-xs font-bold uppercase tracking-wide text-slate-500">
+        📚 Recommended Courses & Resources
+      </p>
+      <div className="space-y-2.5">
+        {topics.map((skillName) => {
+          const links = buildSkillLinks(skillName);
+          return (
+            <div key={skillName} className="rounded-xl bg-white p-3 ring-1 ring-slate-200/75">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="text-xs font-bold capitalize text-slate-800">{skillName}</span>
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <a
+                    href={links.youtube}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 rounded-full bg-rose-50 px-2.5 py-1 text-xs font-semibold text-rose-700 ring-1 ring-rose-200/80 transition hover:bg-rose-100"
+                  >
+                    <YouTubeIcon />
+                    <span>YouTube</span>
+                  </a>
+                  <a
+                    href={links.coursera}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 rounded-full bg-sky-50 px-2.5 py-1 text-xs font-semibold text-sky-700 ring-1 ring-sky-200/80 transition hover:bg-sky-100"
+                  >
+                    <CourseraIcon />
+                    <span>Coursera</span>
+                  </a>
+                  <a
+                    href={links.udemy}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 rounded-full bg-violet-50 px-2.5 py-1 text-xs font-semibold text-violet-700 ring-1 ring-violet-200/80 transition hover:bg-violet-100"
+                  >
+                    <UdemyIcon />
+                    <span>Udemy</span>
+                  </a>
+                </div>
+              </div>
+              <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                <span className="text-[11px] font-medium text-slate-400">Free playlists:</span>
+                {FREE_PLAYLIST_TAGS.map((creator) => (
+                  <a
+                    key={creator}
+                    href={links.playlistSearch(creator)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-0.5 text-[11px] font-medium text-slate-600 ring-1 ring-slate-200/80 transition hover:bg-rose-50 hover:text-rose-700 hover:ring-rose-200"
+                  >
+                    <span aria-hidden="true">▶</span>
+                    <span>{creator}</span>
+                  </a>
+                ))}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function Timeline({ phases, targetRole }) {
   return (
     <ol className="relative ml-3 space-y-8 border-l-2 border-slate-200">
       {phases.map((p, i) => (
@@ -38,6 +152,7 @@ function Timeline({ phases }) {
                 🏁 <span className="font-bold">Milestone:</span> {p.milestone}
               </p>
             )}
+            <CourseRecommendations skills={p.skills} fallbackTopic={p.title} targetRole={targetRole} />
           </div>
         </li>
       ))}
@@ -81,6 +196,7 @@ export default function Roadmap() {
       const d = await api('/careers/roadmap', { method: 'POST', body: { targetRole: role.trim() } });
       setCurrent(d.roadmap);
       setNotice(d.notice || '');
+      if (d.notice) refreshAiStatus();
       setParams({ role: role.trim() });
       api('/careers/roadmaps').then((h) => setHistory(h.roadmaps)).catch(() => {});
     } catch (err) {
@@ -128,7 +244,7 @@ export default function Roadmap() {
               )}
             </div>
           )}
-          {current.phases?.length ? <Timeline phases={current.phases} /> : <p className="text-sm text-slate-400">No phases returned — try again.</p>}
+          {current.phases?.length ? <Timeline phases={current.phases} targetRole={current.targetRole || role} /> : <p className="text-sm text-slate-400">No phases returned — try again.</p>}
         </div>
       )}
 

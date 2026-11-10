@@ -24,7 +24,18 @@ const loginSchema = z.object({
 });
 
 function signToken(user) {
-  return jwt.sign({ sub: user._id.toString() }, env.jwtSecret, { expiresIn: '7d' });
+  return jwt.sign(
+    {
+      sub: user._id.toString(),
+      name: user.name,
+      email: user.email,
+      role: user.role || 'student',
+      department: user.department || '',
+      college: user.college || '',
+    },
+    env.jwtSecret,
+    { expiresIn: '7d' }
+  );
 }
 
 /** Which social providers have credentials configured (public info). */

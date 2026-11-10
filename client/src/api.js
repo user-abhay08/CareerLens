@@ -1,4 +1,5 @@
 const TOKEN_KEY = 'careerlens_token';
+const AUTH_CREDENTIAL_ROUTES = ['/auth/login', '/auth/register', '/auth/social'];
 
 export function getToken() {
   return localStorage.getItem(TOKEN_KEY);
@@ -31,6 +32,12 @@ export async function api(path, { method = 'GET', body, formData } = {}) {
   }
 
   if (!res.ok) {
+    if (res.status === 401 && !AUTH_CREDENTIAL_ROUTES.some((p) => path.startsWith(p))) {
+      setToken(null);
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('careerlens:unauthorized', { detail: data?.error || '' }));
+      }
+    }
     const err = new Error(data?.error || `Request failed (${res.status})`);
     err.status = res.status;
     throw err;

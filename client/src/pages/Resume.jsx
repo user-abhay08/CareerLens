@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import Layout from '../components/Layout';
-import AiModeBanner from '../components/AiModeBanner';
+import AiModeBanner, { refreshAiStatus } from '../components/AiModeBanner';
 import ScoreRing from '../components/ScoreRing';
 import { Loading, Spinner } from '../components/Spinner';
 import { api } from '../api';
@@ -139,6 +139,7 @@ export default function Resume() {
       }
       setCurrent(d.analysis);
       setNotice(d.notice || '');
+      if (d.notice) refreshAiStatus();
       setText('');
       setFile(null);
       if (fileInput.current) fileInput.current.value = '';

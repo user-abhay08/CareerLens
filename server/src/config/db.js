@@ -15,6 +15,11 @@ import JobPosting from '../models/JobPosting.js';
 import InterviewExperience from '../models/InterviewExperience.js';
 
 let pgPool = null;
+let inMemoryMode = false;
+
+export function isInMemoryDb() {
+  return inMemoryMode;
+}
 
 /**
  * PostgreSQL + pgvector Schema DDL per Synopsis Specification:
@@ -282,6 +287,7 @@ export async function connectDB() {
   if (env.mongodbUri) {
     try {
       await mongoose.connect(env.mongodbUri, { serverSelectionTimeoutMS: 8000 });
+      inMemoryMode = false;
       console.log(`[db] Connected to storage cluster`);
       await initDatabaseStructure();
       return 'mongodb';
@@ -293,6 +299,7 @@ export async function connectDB() {
   const { MongoMemoryServer } = await import('mongodb-memory-server');
   const mem = await MongoMemoryServer.create();
   await mongoose.connect(mem.getUri('careerlens'));
+  inMemoryMode = true;
   console.log(`[db] Active storage layer initialized at ${mem.getUri('careerlens')}`);
   await initDatabaseStructure();
   return 'ready';

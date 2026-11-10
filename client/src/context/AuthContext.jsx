@@ -8,6 +8,15 @@ export function AuthProvider({ children }) {
   const [booting, setBooting] = useState(true);
 
   useEffect(() => {
+    const onUnauthorized = () => {
+      setToken(null);
+      setUser(null);
+    };
+    window.addEventListener('careerlens:unauthorized', onUnauthorized);
+    return () => window.removeEventListener('careerlens:unauthorized', onUnauthorized);
+  }, []);
+
+  useEffect(() => {
     (async () => {
       if (!getToken()) {
         setBooting(false);

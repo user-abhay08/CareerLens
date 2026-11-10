@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import Layout from '../components/Layout';
-import AiModeBanner from '../components/AiModeBanner';
+import AiModeBanner, { refreshAiStatus } from '../components/AiModeBanner';
 import { Loading, Spinner } from '../components/Spinner';
 import { api } from '../api';
 
@@ -73,6 +73,7 @@ export default function Interview() {
       setQIndex(0);
       setAnswer('');
       setNotice(d.notice || '');
+      if (d.notice) refreshAiStatus();
       loadPast();
     } catch (err) {
       setError(err.message);
@@ -96,6 +97,7 @@ export default function Interview() {
       });
       setSession(d.session);
       setNotice(d.notice || '');
+      if (d.notice) refreshAiStatus();
     } catch (err) {
       setError(err.message);
     } finally {

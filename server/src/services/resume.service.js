@@ -1,6 +1,6 @@
 import ResumeAnalysis from '../models/ResumeAnalysis.js';
 import Profile from '../models/Profile.js';
-import { generateJSON } from './ai/index.js';
+import { generateJSON, formatAiFallbackNotice } from './ai/index.js';
 import { resumeAnalysisPrompt } from './ai/prompts.js';
 import { fallbackResumeAnalysis } from './fallback.js';
 import { asString, asArray, asStringArray, asNumber, clamp } from '../utils/sanitize.js';
@@ -105,18 +105,16 @@ export async function analyzeResume({ user, file, text, roleContext }) {
     result = sanitizeResult(data);
     provider = p;
   } catch (err) {
-    if (err.message === 'AI_NOT_CONFIGURED') {
-      result = sanitizeResult(fallbackResumeAnalysis({ resumeText, profile, roleContext }));
-    } else {
+    if (err.message !== 'AI_NOT_CONFIGURED' && err.code !== 'AI_NOT_CONFIGURED') {
       console.warn(`[ai] resume analysis failed, using fallback: ${err.message}`);
-      try {
-        result = sanitizeResult(fallbackResumeAnalysis({ resumeText, profile, roleContext }));
-      } catch (fbErr) {
-        console.error(`[ai] fallback generation error: ${fbErr.message}`);
-        result = sanitizeResult({});
-      }
-      notice = `AI request failed (${err.message.slice(0, 140)}). Served built-in heuristic analysis instead.`;
     }
+    try {
+      result = sanitizeResult(fallbackResumeAnalysis({ resumeText, profile, roleContext }));
+    } catch (fbErr) {
+      console.error(`[ai] fallback generation error: ${fbErr.message}`);
+      result = sanitizeResult({});
+    }
+    notice = formatAiFallbackNotice(err, 'built-in heuristic analysis');
   }
 
   if (!result || !result.summary) {

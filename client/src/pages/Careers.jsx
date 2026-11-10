@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Layout from '../components/Layout';
-import AiModeBanner from '../components/AiModeBanner';
+import AiModeBanner, { refreshAiStatus } from '../components/AiModeBanner';
 import LiveJobs from '../components/LiveJobs';
 import { Loading, Spinner } from '../components/Spinner';
 import { api } from '../api';
@@ -12,6 +12,36 @@ const demandColor = (d) => {
   if (s.includes('grow')) return 'inline-flex items-center gap-1.5 rounded-full bg-sky-50 px-3 py-1 text-xs font-semibold text-sky-700 ring-1 ring-sky-100';
   return 'chip';
 };
+
+function linkedInJobUrl(jobTitle) {
+  return `https://www.linkedin.com/jobs/search/?keywords=${encodeURIComponent(jobTitle)}&location=India`;
+}
+
+function internshalaJobUrl(jobTitle) {
+  const slug = String(jobTitle || '')
+    .toLowerCase()
+    .replace(/[/\\]+/g, ' ')
+    .trim()
+    .replace(/\s+/g, '-');
+  return `https://internshala.com/jobs/keywords-${encodeURIComponent(slug)}/`;
+}
+
+function LinkedInIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" className="h-3.5 w-3.5 shrink-0" aria-hidden="true">
+      <path d="M19 3a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14m-.5 15.5v-5.3a3.26 3.26 0 0 0-3.26-3.26c-.85 0-1.84.52-2.28 1.3v-1.11h-2.79v8.37h2.79v-4.93c0-.77.62-1.4 1.39-1.4a1.4 1.4 0 0 1 1.4 1.4v4.93h2.75M6.88 8.56a1.68 1.68 0 0 0 1.68-1.68c0-.93-.75-1.69-1.68-1.69a1.69 1.69 0 0 0-1.69 1.69c0 .93.76 1.68 1.69 1.68m1.39 9.94v-8.37H5.5v8.37h2.77Z" />
+    </svg>
+  );
+}
+
+function InternshalaIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-3.5 w-3.5 shrink-0" aria-hidden="true">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 3 2 8l10 5 10-5-10-5Z" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M6 10.5V16c0 1.7 2.7 3 6 3s6-1.3 6-3v-5.5" />
+    </svg>
+  );
+}
 
 function CareerCard({ career, rank, onViewJobs }) {
   const navigate = useNavigate();
@@ -69,6 +99,26 @@ function CareerCard({ career, rank, onViewJobs }) {
         <button onClick={() => navigate(`/roadmap?role=${encodeURIComponent(career.title)}`)} className="btn-secondary w-full">
           🗺️ Build a roadmap for this
         </button>
+        <div className="grid gap-2 sm:grid-cols-2">
+          <a
+            href={linkedInJobUrl(career.title)}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center justify-center gap-2 rounded-xl bg-sky-50 px-3.5 py-2 text-xs font-semibold text-sky-700 ring-1 ring-sky-200 transition hover:bg-sky-100 hover:text-sky-800"
+          >
+            <LinkedInIcon />
+            <span>View on LinkedIn</span>
+          </a>
+          <a
+            href={internshalaJobUrl(career.title)}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center justify-center gap-2 rounded-xl bg-cyan-50 px-3.5 py-2 text-xs font-semibold text-cyan-700 ring-1 ring-cyan-200 transition hover:bg-cyan-100 hover:text-cyan-800"
+          >
+            <InternshalaIcon />
+            <span>Find on Internshala</span>
+          </a>
+        </div>
         <button onClick={() => onViewJobs(career.title)} className="btn-ghost w-full !py-2 text-xs">
           💼 View live jobs & apply
         </button>
@@ -108,6 +158,7 @@ export default function Careers() {
       const d = await api('/careers/recommend', { method: 'POST' });
       setCurrent(d.recommendation);
       setNotice(d.notice || '');
+      if (d.notice) refreshAiStatus();
       loadHistory();
     } catch (err) {
       setError(err.message);

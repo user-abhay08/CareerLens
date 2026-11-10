@@ -3,7 +3,7 @@ import Roadmap from '../models/Roadmap.js';
 import Profile from '../models/Profile.js';
 import ResumeAnalysis from '../models/ResumeAnalysis.js';
 import CareerReadiness from '../models/CareerReadiness.js';
-import { generateJSON } from './ai/index.js';
+import { generateJSON, formatAiFallbackNotice } from './ai/index.js';
 import { careerRecommendationPrompt, roadmapPrompt, careerReadinessPrompt } from './ai/prompts.js';
 import { fallbackRecommendations, fallbackRoadmap, fallbackCareerReadiness, normalizeSkill } from './fallback.js';
 import { asString, asArray, asStringArray, asNumber, clamp } from '../utils/sanitize.js';
@@ -45,13 +45,11 @@ export async function recommendCareers({ user }) {
     provider = p;
     if (!careers.length) throw new Error('AI returned no careers');
   } catch (err) {
-    if (err.message === 'AI_NOT_CONFIGURED') {
-      careers = fallbackRecommendations(profile);
-    } else {
+    if (err.message !== 'AI_NOT_CONFIGURED' && err.code !== 'AI_NOT_CONFIGURED') {
       console.warn(`[ai] career recommendation failed, using fallback: ${err.message}`);
-      careers = fallbackRecommendations(profile);
-      notice = `AI request failed (${err.message.slice(0, 140)}). Served built-in matching instead.`;
     }
+    careers = fallbackRecommendations(profile);
+    notice = formatAiFallbackNotice(err, 'built-in career matching');
     provider = 'fallback';
   }
 
@@ -94,13 +92,11 @@ export async function buildRoadmap({ user, targetRole }) {
     data = d;
     provider = p;
   } catch (err) {
-    if (err.message === 'AI_NOT_CONFIGURED') {
-      data = fallbackRoadmap({ profile, targetRole });
-    } else {
+    if (err.message !== 'AI_NOT_CONFIGURED' && err.code !== 'AI_NOT_CONFIGURED') {
       console.warn(`[ai] roadmap failed, using fallback: ${err.message}`);
-      data = fallbackRoadmap({ profile, targetRole });
-      notice = `AI request failed (${err.message.slice(0, 140)}). Served built-in roadmap instead.`;
     }
+    data = fallbackRoadmap({ profile, targetRole });
+    notice = formatAiFallbackNotice(err, 'built-in skill roadmap');
     provider = 'fallback';
   }
 
@@ -112,9 +108,18 @@ export async function buildRoadmap({ user, targetRole }) {
     currentSkills: profile.skills || [],
     missingSkills: asStringArray(data.missingSkills, 12),
     phases: sanitizePhases(data),
-    recommendedCourses: asArray(data.recommendedCourses).slice(0, 5),
-    recommendedCertifications: asArray(data.recommendedCertifications).slice(0, 5),
-    recommendedProjects: asArray(data.recommendedProjects).slice(0, 5),
+    recommendedCourses: asArray(data.recommendedCourses)
+      .slice(0, 5)
+      .map((c) => (typeof c === 'string' ? { title: c } : { title: asString(c?.title), platform: asString(c?.platform), url: asString(c?.url) }))
+      .filter((c) => c.title),
+    recommendedCertifications: asArray(data.recommendedCertifications)
+      .slice(0, 5)
+      .map((c) => (typeof c === 'string' ? { title: c } : { title: asString(c?.title), provider: asString(c?.provider) }))
+      .filter((c) => c.title),
+    recommendedProjects: asArray(data.recommendedProjects)
+      .slice(0, 5)
+      .map((p) => (typeof p === 'string' ? { title: p } : { title: asString(p?.title), description: asString(p?.description), skills: asStringArray(p?.skills, 8) }))
+      .filter((p) => p.title),
   });
   return { roadmap: doc, notice };
 }
@@ -155,9 +160,7 @@ export async function assessCareerReadiness({ user, targetRole }) {
   } catch (err) {
     result = fallbackCareerReadiness({ profile, targetRole: role, resumeAnalysis: latestResume });
     provider = 'fallback';
-    if (err.message !== 'AI_NOT_CONFIGURED') {
-      notice = `AI request failed (${err.message.slice(0, 140)}). Served built-in readiness evaluation.`;
-    }
+    notice = formatAiFallbackNotice(err, 'built-in readiness evaluation');
   }
 
   const doc = await CareerReadiness.create({
