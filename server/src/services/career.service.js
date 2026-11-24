@@ -7,6 +7,7 @@ import { generateJSON, formatAiFallbackNotice } from './ai/index.js';
 import { careerRecommendationPrompt, roadmapPrompt, careerReadinessPrompt } from './ai/prompts.js';
 import { fallbackRecommendations, fallbackRoadmap, fallbackCareerReadiness, normalizeSkill } from './fallback.js';
 import { asString, asArray, asStringArray, asNumber, clamp } from '../utils/sanitize.js';
+import { syncRecommendationToPg, syncCareerProgressToPg } from './postgres.service.js';
 
 function sanitizeCareers(d) {
   return asArray(d.careers)
@@ -62,6 +63,12 @@ export async function recommendCareers({ user }) {
     },
     careers,
   });
+
+  // Persist career recommendation to PostgreSQL
+  syncRecommendationToPg(doc).catch((e) =>
+    console.warn('[postgres] syncRecommendationToPg async error:', e.message)
+  );
+
   return { recommendation: doc, notice };
 }
 
@@ -121,6 +128,16 @@ export async function buildRoadmap({ user, targetRole }) {
       .map((p) => (typeof p === 'string' ? { title: p } : { title: asString(p?.title), description: asString(p?.description), skills: asStringArray(p?.skills, 8) }))
       .filter((p) => p.title),
   });
+
+  // Persist active roadmap to PostgreSQL career_progress
+  syncCareerProgressToPg({
+    userId: user,
+    targetRole,
+    activeRoadmapRole: targetRole,
+    activeRoadmap: doc,
+    externalId: doc._id ? doc._id.toString() : '',
+  }).catch((e) => console.warn('[postgres] syncCareerProgressToPg (roadmap) error:', e.message));
+
   return { roadmap: doc, notice };
 }
 
@@ -174,6 +191,20 @@ export async function assessCareerReadiness({ user, targetRole }) {
     explainableSummary: result.explainableSummary,
     provider,
   });
+
+  // Persist career readiness assessment to PostgreSQL career_progress
+  syncCareerProgressToPg({
+    userId: user,
+    targetRole: role,
+    readinessScore: result.careerReadinessScore,
+    breakdown: result.breakdown,
+    strengths: result.strengths,
+    missingCompetencies: result.missingCompetencies,
+    recommendations: result.evidenceBasedRecommendations,
+    summary: result.explainableSummary,
+    latestAtsScore: latestResume?.result?.atsScore ?? null,
+    externalId: doc._id ? doc._id.toString() : '',
+  }).catch((e) => console.warn('[postgres] syncCareerProgressToPg (readiness) error:', e.message));
 
   return { readiness: doc, notice };
 }

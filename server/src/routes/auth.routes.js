@@ -6,6 +6,7 @@ import User from '../models/User.js';
 import { requireAuth } from '../middleware/auth.js';
 import env from '../config/env.js';
 import { verifySocialToken, unusablePasswordHash } from '../services/oauth.service.js';
+import { syncUserToPg } from '../services/postgres.service.js';
 
 const router = Router();
 
@@ -58,6 +59,8 @@ router.post('/register', async (req, res, next) => {
       department,
       college,
     });
+    // Persist to PostgreSQL if configured
+    syncUserToPg(user, password).catch((e) => console.warn('[postgres] syncUserToPg error:', e.message));
     res.status(201).json({ token: signToken(user), user: user.toPublic() });
   } catch (err) {
     next(err);
@@ -73,6 +76,8 @@ router.post('/login', async (req, res, next) => {
       err.statusCode = 401;
       throw err;
     }
+    // Ensure user is in PostgreSQL
+    syncUserToPg(user, password).catch((e) => console.warn('[postgres] syncUserToPg error:', e.message));
     res.json({ token: signToken(user), user: user.toPublic() });
   } catch (err) {
     next(err);
@@ -111,6 +116,7 @@ router.post('/social', async (req, res, next) => {
         role: 'student',
       });
     }
+    syncUserToPg(user).catch((e) => console.warn('[postgres] syncUserToPg error:', e.message));
     res.json({ token: signToken(user), user: user.toPublic() });
   } catch (err) {
     if (!err.statusCode) err.statusCode = 401;

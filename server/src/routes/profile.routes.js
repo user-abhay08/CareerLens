@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import Profile from '../models/Profile.js';
 import { requireAuth } from '../middleware/auth.js';
+import { syncSkillsToPg } from '../services/postgres.service.js';
 
 const router = Router();
 
@@ -119,6 +120,15 @@ router.put('/', requireAuth, async (req, res, next) => {
       { $set: { ...data, user: req.user.id } },
       { new: true, upsert: true, runValidators: true, setDefaultsOnInsert: true }
     );
+
+    // Sync skills to PostgreSQL user_skills and skills catalog
+    const allSkills = [...(data.skills || []), ...(data.technicalSkills || []), ...(data.softSkills || [])];
+    if (allSkills.length) {
+      syncSkillsToPg(req.user.id, allSkills, 'profile').catch((e) =>
+        console.warn('[postgres] syncSkillsToPg error:', e.message)
+      );
+    }
+
     res.json({ profile });
   } catch (err) {
     next(err);

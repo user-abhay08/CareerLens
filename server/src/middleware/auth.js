@@ -1,36 +1,6 @@
 import jwt from 'jsonwebtoken';
-import mongoose from 'mongoose';
 import env from '../config/env.js';
-import { isInMemoryDb } from '../config/db.js';
 import User from '../models/User.js';
-import { unusablePasswordHash } from '../services/oauth.service.js';
-
-async function restoreInMemoryUser(payload) {
-  if (!isInMemoryDb() || !payload?.email || !payload?.name || !mongoose.Types.ObjectId.isValid(payload.sub)) {
-    return null;
-  }
-  const email = String(payload.email).trim().toLowerCase();
-  const existing = await User.findOne({ email }).lean();
-  if (existing) return existing;
-
-  try {
-    const created = await User.create({
-      _id: new mongoose.Types.ObjectId(payload.sub),
-      name: String(payload.name).trim(),
-      email,
-      passwordHash: unusablePasswordHash(),
-      role: payload.role || 'student',
-      department: payload.department || '',
-      college: payload.college || '',
-    });
-    return created.toObject();
-  } catch (createErr) {
-    if (createErr.code === 11000) {
-      return (await User.findById(payload.sub).lean()) || (await User.findOne({ email }).lean());
-    }
-    throw createErr;
-  }
-}
 
 export async function requireAuth(req, res, next) {
   try {
@@ -42,17 +12,14 @@ export async function requireAuth(req, res, next) {
       throw err;
     }
     const payload = jwt.verify(token, env.jwtSecret);
-    let user = await User.findById(payload.sub).lean();
-    if (!user) {
-      user = await restoreInMemoryUser(payload);
-    }
+    const user = await User.findById(payload.sub);
     if (!user) {
       const err = new Error('Session expired — please log in again');
       err.statusCode = 401;
       throw err;
     }
     req.user = {
-      id: user._id.toString(),
+      id: user.id || user._id,
       name: user.name,
       email: user.email,
       role: user.role || 'student',

@@ -4,6 +4,7 @@ import { generateJSON, formatAiFallbackNotice } from './ai/index.js';
 import { resumeAnalysisPrompt } from './ai/prompts.js';
 import { fallbackResumeAnalysis } from './fallback.js';
 import { asString, asArray, asStringArray, asNumber, clamp } from '../utils/sanitize.js';
+import { syncResumeToPg } from './postgres.service.js';
 
 /** Extracts plain text from an uploaded PDF or text file buffer. */
 export async function extractTextFromFile(file) {
@@ -129,6 +130,11 @@ export async function analyzeResume({ user, file, text, roleContext }) {
     provider,
     result,
   });
+
+  // Persist resume and 384-dimensional pgvector embedding to PostgreSQL
+  syncResumeToPg(doc, resumeText).catch((e) =>
+    console.warn('[postgres] syncResumeToPg async error:', e.message)
+  );
 
   return { analysis: doc, notice };
 }

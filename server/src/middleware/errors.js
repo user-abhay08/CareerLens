@@ -1,4 +1,3 @@
-import mongoose from 'mongoose';
 import { ZodError } from 'zod';
 
 export function AppError(message, statusCode = 400) {
@@ -19,16 +18,13 @@ export function errorHandler(err, req, res, next) {
   if (err instanceof ZodError) {
     status = 400;
     message = err.issues?.[0]?.message || 'Invalid input';
-  } else if (err instanceof mongoose.Error.ValidationError) {
-    status = 400;
-    message = Object.values(err.errors)[0]?.message || 'Invalid data';
-  } else if (err.code === 11000) {
+  } else if (err.code === '23505' || err.code === 11000) {
     status = 409;
-    const field = Object.keys(err.keyPattern || {})[0] || 'field';
-    message = `That ${field} is already registered`;
-  } else if (err.name === 'CastError') {
-    status = 400;
-    message = 'Invalid id format';
+    if (err.detail && err.detail.includes('email')) {
+      message = 'An account with that email already exists';
+    } else {
+      message = 'A record with that unique value already exists';
+    }
   } else if (err.name === 'MulterError') {
     status = 400;
     message = err.code === 'LIMIT_FILE_SIZE' ? 'File too large — max 5 MB' : (err.message || 'File upload failed');

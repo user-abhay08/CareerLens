@@ -4,6 +4,11 @@ import { requireAuth } from '../middleware/auth.js';
 import { AppError } from '../middleware/errors.js';
 import { searchJobs } from '../services/jobs.service.js';
 import JobApplication from '../models/JobApplication.js';
+import {
+  syncApplicationToPg,
+  updateApplicationInPg,
+  deleteApplicationFromPg,
+} from '../services/postgres.service.js';
 
 const router = Router();
 
@@ -61,6 +66,12 @@ router.post('/applications', requireAuth, async (req, res, next) => {
       ...data,
       user: req.user.id,
     });
+
+    // Persist application to PostgreSQL application_history
+    syncApplicationToPg(application).catch((e) =>
+      console.warn('[postgres] syncApplicationToPg async error:', e.message)
+    );
+
     res.status(201).json({ application });
   } catch (err) {
     next(err);
@@ -82,6 +93,12 @@ router.patch('/applications/:id', requireAuth, async (req, res, next) => {
       { new: true }
     );
     if (!application) throw AppError('Application not found', 404);
+
+    // Update in PostgreSQL application_history
+    updateApplicationInPg(req.params.id, status, notes).catch((e) =>
+      console.warn('[postgres] updateApplicationInPg error:', e.message)
+    );
+
     res.json({ application });
   } catch (err) {
     next(err);
@@ -92,6 +109,12 @@ router.delete('/applications/:id', requireAuth, async (req, res, next) => {
   try {
     const application = await JobApplication.findOneAndDelete({ _id: req.params.id, user: req.user.id });
     if (!application) throw AppError('Application not found', 404);
+
+    // Delete from PostgreSQL application_history
+    deleteApplicationFromPg(req.params.id).catch((e) =>
+      console.warn('[postgres] deleteApplicationFromPg error:', e.message)
+    );
+
     res.json({ ok: true, id: req.params.id });
   } catch (err) {
     next(err);

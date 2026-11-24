@@ -47,11 +47,22 @@ function readGeminiModel() {
 
 const env = {
   port: Number(process.env.PORT || 5000),
-  clientOrigin: process.env.CLIENT_ORIGIN || 'http://localhost:5173',
-  jwtSecret: process.env.JWT_SECRET || 'careerlens-dev-secret-change-me',
-  // PostgreSQL + pgvector primary database (Synopsis specification)
-  postgresUri: process.env.POSTGRES_URI || process.env.DATABASE_URL || '',
-  mongodbUri: process.env.MONGODB_URI || '',
+  clientOrigin: cleanEnv(process.env.CLIENT_ORIGIN || 'http://localhost:5173'),
+  jwtSecret: cleanEnv(process.env.JWT_SECRET || 'careerlens-dev-secret-change-me'),
+
+  // ── Primary Database: PostgreSQL + pgvector (Synopsis & Project Specification) ──
+  postgresUri: cleanEnv(
+    process.env.POSTGRES_URI ||
+    process.env.DATABASE_URL ||
+    'postgresql://postgres:root@localhost:5432/carrerlens'
+  ),
+  pgvector: {
+    dimension: Number(process.env.PGVECTOR_DIMENSION || 384),
+  },
+
+  // Secondary / fallback in-memory store
+  mongodbUri: cleanEnv(process.env.MONGODB_URI || ''),
+
   gemini: {
     get apiKey() {
       return readApiKey(
@@ -72,10 +83,10 @@ const env = {
     apiKey: readApiKey(process.env.OPENROUTER_API_KEY),
     model: cleanEnv(process.env.OPENROUTER_MODEL) || 'meta-llama/llama-3.3-70b-instruct:free',
   },
-  googleClientId: process.env.GOOGLE_CLIENT_ID || '',
-  appleClientId: process.env.APPLE_CLIENT_ID || '',
+  googleClientId: cleanEnv(process.env.GOOGLE_CLIENT_ID || ''),
+  appleClientId: cleanEnv(process.env.APPLE_CLIENT_ID || ''),
   jobs: {
-    rapidapiKey: process.env.RAPIDAPI_KEY || '',
+    rapidapiKey: cleanEnv(process.env.RAPIDAPI_KEY || ''),
   },
 };
 

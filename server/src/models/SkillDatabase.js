@@ -1,27 +1,42 @@
-import mongoose from 'mongoose';
+import { query, parseJson } from '../db/index.js';
+import { QueryBuilder } from '../db/queryBuilder.js';
 
-const skillDatabaseSchema = new mongoose.Schema(
-  {
-    name: { type: String, required: true, unique: true, trim: true, lowercase: true },
-    category: {
-      type: String,
-      enum: ['technical', 'soft', 'framework', 'database', 'cloud', 'tool', 'language'],
-      default: 'technical',
-    },
-    domains: { type: [String], default: [] },
-    description: { type: String, default: '' },
-    demand: { type: String, enum: ['High', 'Very High', 'Moderate', 'Growing'], default: 'High' },
-  },
-  { timestamps: true }
-);
+export class SkillDatabase {
+  static fromRow(row) {
+    if (!row) return null;
+    return {
+      id: row.id,
+      _id: row.id,
+      name: row.name,
+      category: row.category || 'technical',
+      domains: parseJson(row.domains, []),
+      description: '',
+      demand: row.demand || 'High',
+      createdAt: row.created_at,
+    };
+  }
 
-skillDatabaseSchema.set('toJSON', {
-  transform: (_doc, ret) => {
-    ret.id = ret._id.toString();
-    delete ret._id;
-    delete ret.__v;
-    return ret;
-  },
-});
+  static find(filter = {}) {
+    let sql = 'SELECT * FROM skills';
+    const params = [];
 
-export default mongoose.model('SkillDatabase', skillDatabaseSchema);
+    if (filter.category) {
+      params.push(filter.category);
+      sql += ' WHERE category = $1';
+    }
+
+    return new QueryBuilder({
+      baseSql: sql,
+      params,
+      isSingle: false,
+      mapRow: SkillDatabase.fromRow,
+    });
+  }
+
+  static async countDocuments() {
+    const res = await query('SELECT COUNT(*) AS count FROM skills');
+    return parseInt(res.rows[0].count, 10);
+  }
+}
+
+export default SkillDatabase;

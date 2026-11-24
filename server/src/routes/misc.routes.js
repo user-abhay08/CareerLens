@@ -10,6 +10,7 @@ import Profile from '../models/Profile.js';
 import User from '../models/User.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
 import { aiStatus } from '../services/ai/index.js';
+import { syncCareerProgressToPg } from '../services/postgres.service.js';
 
 const router = Router();
 
@@ -72,6 +73,23 @@ router.get('/dashboard', requireAuth, async (req, res, next) => {
       bestResume?.result?.resumeQualityScore ??
       bestResume?.result?.atsScore ??
       null;
+
+    // Keep PostgreSQL career_progress synchronized if progress data exists
+    if (latestReadiness || latestRoadmap || bestResume) {
+      syncCareerProgressToPg({
+        userId: req.user.id,
+        targetRole: latestRoadmap?.targetRole || latestReadiness?.targetRole || profile?.targetRole || 'Software Engineer',
+        readinessScore: careerReadinessScore || 0,
+        breakdown: latestReadiness?.breakdown || {},
+        strengths: latestReadiness?.strengths || bestResume?.result?.strengths || [],
+        missingCompetencies: latestReadiness?.missingCompetencies || bestResume?.result?.missingSkills || [],
+        recommendations: latestReadiness?.evidenceBasedRecommendations || [],
+        summary: latestReadiness?.explainableSummary || bestResume?.result?.summary || '',
+        activeRoadmapRole: latestRoadmap?.targetRole || '',
+        activeRoadmap: latestRoadmap || null,
+        latestAtsScore: bestResume?.result?.atsScore ?? null,
+      }).catch((e) => console.warn('[postgres] syncCareerProgressToPg (dashboard) error:', e.message));
+    }
 
     res.json({
       profile: profile || null,
