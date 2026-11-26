@@ -2,6 +2,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import SocialLogin from '../components/SocialLogin';
+import PasswordInput from '../components/PasswordInput';
 
 export default function Login() {
   const { login } = useAuth();
@@ -42,10 +43,14 @@ export default function Login() {
               <label className="label" htmlFor="email">Email</label>
               <input id="email" type="email" required className="input" placeholder="you@example.com" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
             </div>
-            <div>
-              <label className="label" htmlFor="password">Password</label>
-              <input id="password" type="password" required className="input" placeholder="••••••••" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} />
-            </div>
+            <PasswordInput
+              id="password"
+              label="Password"
+              placeholder="••••••••"
+              required
+              value={form.password}
+              onChange={(e) => setForm({ ...form, password: e.target.value })}
+            />
             <button type="submit" disabled={busy} className="btn-primary w-full">
               {busy ? 'Logging in…' : 'Log in'}
             </button>

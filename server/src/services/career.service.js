@@ -33,8 +33,12 @@ function sanitizeCareers(d) {
     .sort((a, b) => b.matchScore - a.matchScore);
 }
 
-export async function recommendCareers({ user }) {
+export async function recommendCareers({ user, experienceYears }) {
   const profile = (await Profile.findOne({ user }).lean()) || {};
+  if (experienceYears !== undefined && experienceYears !== null && !Number.isNaN(Number(experienceYears))) {
+    profile.experienceYears = clamp(Number(experienceYears), 0, 15);
+  }
+
   const prompt = careerRecommendationPrompt({ profile });
 
   let careers;
@@ -60,6 +64,7 @@ export async function recommendCareers({ user }) {
     inputSnapshot: {
       skills: profile.skills || [],
       interests: profile.interests || [],
+      experienceYears: profile.experienceYears || 0,
     },
     careers,
   });

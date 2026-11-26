@@ -86,7 +86,13 @@ const env = {
   googleClientId: cleanEnv(process.env.GOOGLE_CLIENT_ID || ''),
   appleClientId: cleanEnv(process.env.APPLE_CLIENT_ID || ''),
   jobs: {
-    rapidapiKey: cleanEnv(process.env.RAPIDAPI_KEY || ''),
+    get rapidapiKey() {
+      return readApiKey(
+        process.env.RAPIDAPI_KEY,
+        process.env.RAPID_API_KEY,
+        process.env.JSEARCH_API_KEY
+      );
+    },
   },
 };
 

@@ -135,6 +135,7 @@ export default function Careers() {
   const [history, setHistory] = useState([]);
   const [jobRole, setJobRole] = useState('');
   const [autoSearchKey, setAutoSearchKey] = useState(0);
+  const [expYears, setExpYears] = useState(0);
   const jobsRef = useRef(null);
 
   const loadHistory = () =>
@@ -147,6 +148,14 @@ export default function Careers() {
 
   useEffect(() => {
     loadHistory();
+    // Pre-populate experience years from user's profile if already saved
+    api('/profile')
+      .then((d) => {
+        if (d.profile?.experienceYears != null) {
+          setExpYears(Number(d.profile.experienceYears) || 0);
+        }
+      })
+      .catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -155,7 +164,10 @@ export default function Careers() {
     setError('');
     setNotice('');
     try {
-      const d = await api('/careers/recommend', { method: 'POST' });
+      const d = await api('/careers/recommend', {
+        method: 'POST',
+        body: { experienceYears: Number(expYears) },
+      });
       setCurrent(d.recommendation);
       setNotice(d.notice || '');
       if (d.notice) refreshAiStatus();
@@ -170,17 +182,58 @@ export default function Careers() {
   return (
     <Layout
       title="Career matches"
-      subtitle="Ranked from your profile's skills, interests and education. Update your profile for sharper matches."
+      subtitle="Ranked from your profile's skills, interests, education, and target experience level (0–15 years)."
     >
       <AiModeBanner />
       {error && <p className="banner-error mb-4">{error}</p>}
       {notice && <p className="banner-warn mb-4">{notice}</p>}
 
-      <button onClick={recommend} disabled={busy} className="btn-primary mb-8 px-8">
-        {busy ? (<><Spinner className="h-4 w-4" /> Matching careers…</>) : '🎯 Find my top 5 careers'}
-      </button>
+      {/* Experience Level Selector (0 to 15 Years) & Find Careers control */}
+      <div className="mb-8 rounded-2xl bg-white p-5 ring-1 ring-slate-200/80 shadow-sm">
+        <div className="flex flex-wrap items-end justify-between gap-4">
+          <div className="min-w-[260px] flex-1">
+            <div className="flex items-center justify-between">
+              <label htmlFor="expLevel" className="label font-bold text-slate-800">
+                Experience Level (0 to 15 Years)
+              </label>
+              <span className="chip-accent text-[11px] font-bold">
+                {expYears === 0 ? 'Fresher / Entry' : `${expYears} yr${expYears > 1 ? 's' : ''} exp`}
+              </span>
+            </div>
+            <select
+              id="expLevel"
+              className="input cursor-pointer font-medium"
+              value={expYears}
+              onChange={(e) => setExpYears(Number(e.target.value))}
+            >
+              <option value={0}>0 years — Fresher / College Graduate / Entry-level</option>
+              <option value={1}>1 year — Junior Associate (0–1 yrs)</option>
+              <option value={2}>2 years — Junior Professional (1–2 yrs)</option>
+              <option value={3}>3 years — Mid-level Engineer (2–3 yrs)</option>
+              <option value={4}>4 years — Mid-level Specialist (3–4 yrs)</option>
+              <option value={5}>5 years — Senior Specialist (4–5 yrs)</option>
+              <option value={6}>6 years — Senior Professional (5–6 yrs)</option>
+              <option value={7}>7 years — Senior / Tech Lead (6–7 yrs)</option>
+              <option value={8}>8 years — Lead Engineer / Team Lead (7–8 yrs)</option>
+              <option value={9}>9 years — Staff Engineer / Engineering Manager (8–9 yrs)</option>
+              <option value={10}>10 years — Principal Engineer / Director (9–10 yrs)</option>
+              <option value={11}>11 years — Principal Architect (10–11 yrs)</option>
+              <option value={12}>12 years — Director / Lead Architect (11–12 yrs)</option>
+              <option value={13}>13 years — Senior Director / Chief Architect (12–13 yrs)</option>
+              <option value={14}>14 years — Vice President / Fellow (13–14 yrs)</option>
+              <option value={15}>15+ years — Executive / Senior Fellow (15+ yrs)</option>
+            </select>
+            <p className="mt-1.5 text-xs text-slate-400">
+              Matches will calibrate seniority expectations, matching skills, and industry salary bands to your chosen experience.
+            </p>
+          </div>
+          <button onClick={recommend} disabled={busy} className="btn-primary shrink-0 px-8">
+            {busy ? (<><Spinner className="h-4 w-4" /> Matching careers…</>) : '🎯 Find my top 5 careers'}
+          </button>
+        </div>
+      </div>
 
-      {busy && <Loading label="Comparing your profile against the job market…" />}
+      {busy && <Loading label="Comparing your profile and experience level against the job market…" />}
 
       {!busy && current && current.careers?.length > 0 && (
         <div className="grid gap-5 lg:grid-cols-2">
@@ -203,7 +256,7 @@ export default function Careers() {
         <div className="card p-12 text-center">
           <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-violet-50 text-2xl ring-1 ring-violet-100">🎯</div>
           <p className="mt-4 text-sm font-semibold text-slate-700">No career matches yet</p>
-          <p className="mt-1 text-xs text-slate-400">Click "Find my top 5 careers" to generate your first match report.</p>
+          <p className="mt-1 text-xs text-slate-400">Select your experience level above and click "Find my top 5 careers" to generate your first match report.</p>
         </div>
       )}
 
@@ -222,7 +275,7 @@ export default function Careers() {
       )}
 
       <div ref={jobsRef} className="mt-10 scroll-mt-6">
-        <LiveJobs role={jobRole} autoSearchKey={autoSearchKey} />
+        <LiveJobs role={jobRole} autoSearchKey={autoSearchKey} initialExperienceYears={expYears} />
       </div>
     </Layout>
   );

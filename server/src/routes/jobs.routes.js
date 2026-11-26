@@ -16,7 +16,8 @@ const querySchema = z.object({
   role: z.string().trim().min(2).max(120),
   location: z.string().trim().max(120).optional().default(''),
   jobType: z.enum(['any', 'fulltime', 'intern', 'contractor', 'parttime']).optional().default('any'),
-  experience: z.enum(['any', 'entry', 'senior']).optional().default('any'),
+  experience: z.string().optional().default('any'),
+  experienceYears: z.coerce.number().min(0).max(15).optional(),
   postedWithin: z.enum(['any', 'today', '3days', 'week', 'month']).optional().default('any'),
   minSalary: z.coerce.number().min(0).max(100000000).optional(),
   remoteOnly: z
@@ -41,8 +42,8 @@ const applicationSchema = z.object({
 /** Live job search restricted strictly to LinkedIn & Remotive */
 router.get('/', requireAuth, async (req, res, next) => {
   try {
-    const { role, location, jobType, experience, postedWithin, minSalary, remoteOnly } = querySchema.parse(req.query);
-    const result = await searchJobs({ role, location, filters: { jobType, experience, postedWithin, minSalary, remoteOnly } });
+    const { role, location, jobType, experience, experienceYears, postedWithin, minSalary, remoteOnly } = querySchema.parse(req.query);
+    const result = await searchJobs({ role, location, filters: { jobType, experience, experienceYears, postedWithin, minSalary, remoteOnly } });
     res.json(result);
   } catch (err) {
     next(err);

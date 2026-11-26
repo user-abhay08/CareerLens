@@ -19,26 +19,36 @@ function postedLabel(iso) {
   return '';
 }
 
-const EMPTY_FILTERS = { jobType: 'any', experience: 'any', postedWithin: 'any', minSalary: '', remoteOnly: false };
+const EMPTY_FILTERS = { jobType: 'any', experience: 'any', experienceYears: 'any', postedWithin: 'any', minSalary: '', remoteOnly: false };
 
 /**
  * Live job listings for a target role.
  * Strictly restricted to LinkedIn and Remotive providers only.
  */
-export default function LiveJobs({ role, autoSearchKey = 0 }) {
+export default function LiveJobs({ role, autoSearchKey = 0, initialExperienceYears = 0 }) {
   const [searchRole, setSearchRole] = useState(role || '');
   const [location, setLocation] = useState('India');
-  const [filters, setFilters] = useState(EMPTY_FILTERS);
+  const [filters, setFilters] = useState(() => ({
+    ...EMPTY_FILTERS,
+    experienceYears: initialExperienceYears != null ? String(initialExperienceYears) : 'any',
+  }));
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const lastAuto = useRef(0);
 
+  useEffect(() => {
+    if (initialExperienceYears != null) {
+      setFilters((f) => ({ ...f, experienceYears: String(initialExperienceYears) }));
+    }
+  }, [initialExperienceYears]);
+
   const buildQuery = (r, l, f) => {
     const p = new URLSearchParams({ role: r.trim(), location: l.trim() });
     if (f.jobType !== 'any') p.set('jobType', f.jobType);
     if (f.experience !== 'any') p.set('experience', f.experience);
+    if (f.experienceYears && f.experienceYears !== 'any') p.set('experienceYears', f.experienceYears);
     if (f.postedWithin !== 'any') p.set('postedWithin', f.postedWithin);
     if (f.minSalary) p.set('minSalary', f.minSalary);
     if (f.remoteOnly) p.set('remoteOnly', 'true');
@@ -46,7 +56,7 @@ export default function LiveJobs({ role, autoSearchKey = 0 }) {
   };
 
   const runSearch = async (r = searchRole, l = location, f = filters) => {
-    if (!r.trim()) return;
+    if (!r || !r.trim()) return;
     setLoading(true);
     setError('');
     try {
@@ -59,15 +69,19 @@ export default function LiveJobs({ role, autoSearchKey = 0 }) {
     }
   };
 
-  // Auto-search when a career card triggers a new role.
+  // Auto-search when a career card triggers a new role or user changes role selection
   useEffect(() => {
-    if (role && role !== searchRole && autoSearchKey !== lastAuto.current) {
+    if (role && (autoSearchKey !== lastAuto.current || role !== searchRole)) {
       lastAuto.current = autoSearchKey;
       setSearchRole(role);
-      runSearch(role, location, filters);
+      const activeFilters = {
+        ...filters,
+        experienceYears: initialExperienceYears != null ? String(initialExperienceYears) : filters.experienceYears,
+      };
+      runSearch(role, location, activeFilters);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [role, autoSearchKey]);
+  }, [role, autoSearchKey, initialExperienceYears]);
 
   const setF = (key, value) => setFilters((f) => ({ ...f, [key]: value }));
   const activeFilterCount = Object.entries(filters).filter(([k, v]) => v && v !== 'any' && EMPTY_FILTERS[k] !== v).length;
@@ -82,16 +96,31 @@ export default function LiveJobs({ role, autoSearchKey = 0 }) {
       </div>
 
       <form
-        onSubmit={(e) => { e.preventDefault(); runSearch(); }}
+        onSubmit={(e) => {
+          e.preventDefault();
+          runSearch(searchRole, location, filters);
+        }}
         className="mt-4 grid gap-3 sm:grid-cols-[2fr_1fr_auto] sm:items-end"
       >
         <div>
           <label className="label" htmlFor="jobRole">Role</label>
-          <input id="jobRole" className="input" placeholder="e.g. Frontend Developer" value={searchRole} onChange={(e) => setSearchRole(e.target.value)} />
+          <input
+            id="jobRole"
+            className="input"
+            placeholder="e.g. Frontend Developer"
+            value={searchRole}
+            onChange={(e) => setSearchRole(e.target.value)}
+          />
         </div>
         <div>
           <label className="label" htmlFor="jobLocation">Location</label>
-          <input id="jobLocation" className="input" placeholder="e.g. Bengaluru" value={location} onChange={(e) => setLocation(e.target.value)} />
+          <input
+            id="jobLocation"
+            className="input"
+            placeholder="e.g. Bengaluru"
+            value={location}
+            onChange={(e) => setLocation(e.target.value)}
+          />
         </div>
         <button type="submit" disabled={loading || !searchRole.trim()} className="btn-primary">
           {loading ? (<><Spinner className="h-4 w-4" /> Searching…</>) : 'Find jobs'}
@@ -120,11 +149,22 @@ export default function LiveJobs({ role, autoSearchKey = 0 }) {
             </select>
           </div>
           <div>
-            <label className="label" htmlFor="fExp">Experience level</label>
-            <select id="fExp" className="input cursor-pointer" value={filters.experience} onChange={(e) => setF('experience', e.target.value)}>
-              <option value="any">Any</option>
-              <option value="entry">Entry level (0–3 yrs)</option>
-              <option value="senior">Senior (3+ yrs)</option>
+            <label className="label" htmlFor="fExpYears">Experience Level (0 to 15 Yrs)</label>
+            <select id="fExpYears" className="input cursor-pointer font-medium" value={filters.experienceYears} onChange={(e) => setF('experienceYears', e.target.value)}>
+              <option value="any">Any experience</option>
+              <option value="0">0 yrs (Fresher / Entry level)</option>
+              <option value="1">1 year (Junior Associate)</option>
+              <option value="2">2 years (Junior)</option>
+              <option value="3">3 years (Mid-level)</option>
+              <option value="4">4 years (Mid-level)</option>
+              <option value="5">5 years (Senior)</option>
+              <option value="6">6 years (Senior)</option>
+              <option value="7">7 years (Tech Lead)</option>
+              <option value="8">8 years (Lead Engineer)</option>
+              <option value="9">9 years (Staff Engineer)</option>
+              <option value="10">10 years (Principal / Manager)</option>
+              <option value="12">12 years (Director / Architect)</option>
+              <option value="15">15+ years (Enterprise Architect / Exec)</option>
             </select>
           </div>
           <div>
@@ -152,7 +192,7 @@ export default function LiveJobs({ role, autoSearchKey = 0 }) {
           </label>
           <div className="flex items-end gap-2">
             <button type="button" onClick={() => { setFilters(EMPTY_FILTERS); }} className="btn-ghost !py-2 text-xs">Clear filters</button>
-            <button type="button" onClick={() => runSearch()} className="btn-secondary !py-2 text-xs">Apply filters</button>
+            <button type="button" onClick={() => runSearch(searchRole, location, filters)} className="btn-secondary !py-2 text-xs">Apply filters</button>
           </div>
         </div>
       )}

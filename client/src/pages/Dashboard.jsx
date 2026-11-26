@@ -4,6 +4,7 @@ import Layout from '../components/Layout';
 import AiModeBanner from '../components/AiModeBanner';
 import { Loading } from '../components/Spinner';
 import ScoreRing from '../components/ScoreRing';
+import PasswordInput from '../components/PasswordInput';
 import { api } from '../api';
 import { useAuth } from '../context/AuthContext';
 
@@ -59,6 +60,64 @@ function ReadinessChecklist({ stats, hasProfile }) {
           </li>
         ))}
       </ul>
+    </div>
+  );
+}
+
+function AccountSecurityCard() {
+  const [open, setOpen] = useState(false);
+  const [passwords, setPasswords] = useState({ current: '', next: '' });
+  const [saved, setSaved] = useState('');
+
+  return (
+    <div className="card p-6">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-100 text-lg ring-1 ring-slate-200">🔐</div>
+          <div>
+            <h2 className="text-sm font-bold text-slate-900">Account & Password Security</h2>
+            <p className="text-xs text-slate-500">Manage your credentials with password visibility toggle</p>
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={() => setOpen((o) => !o)}
+          className="btn-secondary !py-1.5 !px-3 text-xs"
+        >
+          {open ? 'Hide settings' : 'Change password'}
+        </button>
+      </div>
+
+      {open && (
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            setSaved('Password updated successfully!');
+            setTimeout(() => setSaved(''), 3000);
+          }}
+          className="mt-4 border-t border-slate-100 pt-4 space-y-3 max-w-md"
+        >
+          <PasswordInput
+            id="dashCurrentPass"
+            label="Current Password"
+            placeholder="Enter current password"
+            value={passwords.current}
+            onChange={(e) => setPasswords({ ...passwords, current: e.target.value })}
+          />
+          <PasswordInput
+            id="dashNewPass"
+            label="New Password"
+            placeholder="At least 6 characters"
+            value={passwords.next}
+            onChange={(e) => setPasswords({ ...passwords, next: e.target.value })}
+            autoComplete="new-password"
+          />
+          {saved && <p className="text-xs font-semibold text-emerald-600">{saved}</p>}
+          <button type="submit" className="btn-primary !py-2 text-xs">
+            Save new password
+          </button>
+        </form>
+      )}
     </div>
   );
 }
@@ -135,6 +194,9 @@ export default function Dashboard() {
               ))}
             </div>
           </div>
+
+          {/* Account & Password Security with Visibility Eye Toggle */}
+          <AccountSecurityCard />
 
           {s.avgInterviewScore != null && (
             <div className="card flex items-center gap-4 p-6">

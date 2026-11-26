@@ -14,24 +14,161 @@ export function normalizeSet(list) {
 
 const intersect = (setA, listOfB) => listOfB.filter((b) => setA.has(normalizeSkill(b)));
 
-/** Ranks the static career catalog against a candidate profile. */
+const DOMAIN_TRACKS = {
+  'Frontend Developer': 'Web',
+  'Backend Developer': 'Backend',
+  'Full-Stack Developer': 'Web',
+  'Mobile App Developer': 'Mobile',
+  'Data Analyst': 'Data',
+  'Data Scientist': 'Data/AI',
+  'Machine Learning Engineer': 'Data/AI',
+  'AI / LLM Engineer': 'Data/AI',
+  'DevOps / Cloud Engineer': 'Cloud/DevOps',
+  'Cybersecurity Analyst': 'Security',
+  'QA / Test Automation Engineer': 'QA/Testing',
+  'Product Manager': 'Product',
+  'Business Analyst': 'Business',
+  'Digital Marketing Specialist': 'Marketing',
+  'UI/UX Designer': 'Design',
+};
+
+const EXP_TIER_AFFINITY = {
+  fresher: {
+    'Frontend Developer': 24,
+    'Data Analyst': 23,
+    'QA / Test Automation Engineer': 22,
+    'Business Analyst': 20,
+    'UI/UX Designer': 19,
+    'Backend Developer': 16,
+    'Full-Stack Developer': 15,
+    'Digital Marketing Specialist': 14,
+    'Mobile App Developer': 13,
+    'Data Scientist': 10,
+    'Cybersecurity Analyst': 8,
+    'DevOps / Cloud Engineer': 6,
+    'Machine Learning Engineer': 5,
+    'AI / LLM Engineer': 4,
+    'Product Manager': 3,
+  },
+  mid: {
+    'Full-Stack Developer': 24,
+    'Backend Developer': 23,
+    'Data Scientist': 22,
+    'Mobile App Developer': 21,
+    'Frontend Developer': 20,
+    'UI/UX Designer': 18,
+    'DevOps / Cloud Engineer': 17,
+    'Data Analyst': 15,
+    'QA / Test Automation Engineer': 14,
+    'Cybersecurity Analyst': 14,
+    'Machine Learning Engineer': 12,
+    'AI / LLM Engineer': 10,
+    'Product Manager': 8,
+    'Business Analyst': 8,
+    'Digital Marketing Specialist': 6,
+  },
+  senior: {
+    'DevOps / Cloud Engineer': 24,
+    'Machine Learning Engineer': 23,
+    'AI / LLM Engineer': 23,
+    'Cybersecurity Analyst': 22,
+    'Product Manager': 21,
+    'Backend Developer': 20,
+    'Full-Stack Developer': 18,
+    'Data Scientist': 17,
+    'Mobile App Developer': 13,
+    'UI/UX Designer': 11,
+    'Data Analyst': 10,
+    'QA / Test Automation Engineer': 9,
+    'Business Analyst': 8,
+    'Frontend Developer': 8,
+    'Digital Marketing Specialist': 6,
+  },
+  lead: {
+    'Product Manager': 25,
+    'AI / LLM Engineer': 24,
+    'DevOps / Cloud Engineer': 23,
+    'Cybersecurity Analyst': 22,
+    'Backend Developer': 20,
+    'Machine Learning Engineer': 19,
+    'Full-Stack Developer': 17,
+    'Data Scientist': 15,
+    'Business Analyst': 12,
+    'Data Analyst': 8,
+    'Mobile App Developer': 8,
+    'UI/UX Designer': 8,
+    'QA / Test Automation Engineer': 6,
+    'Frontend Developer': 6,
+    'Digital Marketing Specialist': 5,
+  },
+};
+
+const SALARY_TIERS = {
+  'Frontend Developer': { fresher: '₹4–8 LPA entry (India)', mid: '₹8–16 LPA (India)', senior: '₹18–32 LPA (India)', lead: '₹32–55+ LPA (India)' },
+  'Backend Developer': { fresher: '₹4.5–9 LPA entry (India)', mid: '₹9–18 LPA (India)', senior: '₹20–36 LPA (India)', lead: '₹35–65+ LPA (India)' },
+  'Full-Stack Developer': { fresher: '₹4.5–9 LPA entry (India)', mid: '₹9–19 LPA (India)', senior: '₹20–38 LPA (India)', lead: '₹35–65+ LPA (India)' },
+  'Data Analyst': { fresher: '₹3.5–7 LPA entry (India)', mid: '₹7–14 LPA (India)', senior: '₹15–26 LPA (India)', lead: '₹26–45+ LPA (India)' },
+  'Data Scientist': { fresher: '₹6–12 LPA entry (India)', mid: '₹12–22 LPA (India)', senior: '₹22–42 LPA (India)', lead: '₹42–75+ LPA (India)' },
+  'Machine Learning Engineer': { fresher: '₹6–13 LPA entry (India)', mid: '₹13–24 LPA (India)', senior: '₹24–45 LPA (India)', lead: '₹45–80+ LPA (India)' },
+  'AI / LLM Engineer': { fresher: '₹7–14 LPA entry (India)', mid: '₹14–26 LPA (India)', senior: '₹26–50 LPA (India)', lead: '₹50–90+ LPA (India)' },
+  'DevOps / Cloud Engineer': { fresher: '₹4.5–9 LPA entry (India)', mid: '₹10–20 LPA (India)', senior: '₹20–40 LPA (India)', lead: '₹40–70+ LPA (India)' },
+  'Mobile App Developer': { fresher: '₹4–8.5 LPA entry (India)', mid: '₹8.5–17 LPA (India)', senior: '₹18–32 LPA (India)', lead: '₹32–55+ LPA (India)' },
+  'UI/UX Designer': { fresher: '₹3.5–7.5 LPA entry (India)', mid: '₹7.5–15 LPA (India)', senior: '₹16–28 LPA (India)', lead: '₹28–48+ LPA (India)' },
+  'Cybersecurity Analyst': { fresher: '₹4.5–9 LPA entry (India)', mid: '₹9–18 LPA (India)', senior: '₹18–35 LPA (India)', lead: '₹35–65+ LPA (India)' },
+  'QA / Test Automation Engineer': { fresher: '₹3.5–7 LPA entry (India)', mid: '₹7–14 LPA (India)', senior: '₹14–25 LPA (India)', lead: '₹25–42+ LPA (India)' },
+  'Product Manager': { fresher: '₹6–12 LPA entry (India)', mid: '₹12–22 LPA (India)', senior: '₹22–42 LPA (India)', lead: '₹42–75+ LPA (India)' },
+  'Business Analyst': { fresher: '₹4–8 LPA entry (India)', mid: '₹8–16 LPA (India)', senior: '₹16–28 LPA (India)', lead: '₹28–48+ LPA (India)' },
+  'Digital Marketing Specialist': { fresher: '₹3–6 LPA entry (India)', mid: '₹6–12 LPA (India)', senior: '₹12–22 LPA (India)', lead: '₹22–38+ LPA (India)' },
+};
+
+function getExpTier(expYears) {
+  const exp = Number(expYears) || 0;
+  if (exp === 0) return 'fresher';
+  if (exp <= 4) return 'mid';
+  if (exp <= 8) return 'senior';
+  return 'lead';
+}
+
+/** Ranks the static career catalog against a candidate profile, calibrated for 0–15 years experience and domain diversity. */
 export function fallbackRecommendations(profile = {}) {
+  const expYrs = Number(profile.experienceYears) || 0;
+  const tier = getExpTier(expYrs);
+  const affinity = EXP_TIER_AFFINITY[tier];
+
   const userSkills = normalizeSet(profile.skills);
-  const userInterests = normalizeSet(profile.interests).add(normalizeSkill(profile.targetRole));
+  const userInterests = normalizeSet(profile.interests);
+  if (profile.targetRole) userInterests.add(normalizeSkill(profile.targetRole));
 
   const scored = CAREERS.map((career) => {
     const careerSkills = normalizeSet(career.skills);
     const matchedSkills = intersect(userSkills, career.skills);
     const matchedInterests = intersect(userInterests, career.interests);
-    const skillRatio = career.skills.length ? matchedSkills.length / career.skills.length : 0;
-    const interestRatio = career.interests.length ? matchedInterests.length / career.interests.length : 0;
-    const score = Math.min(97, Math.round(skillRatio * 70 + interestRatio * 30 + 8));
+
+    const expBoost = affinity[career.title] || 10;
+    const skillBoost = Math.min(35, matchedSkills.length * 12);
+    const interestBoost = Math.min(15, matchedInterests.length * 8);
+    const demandBoost = career.demand === 'High' ? 6 : career.demand === 'Growing' ? 4 : 2;
+
+    const rawScore = 48 + expBoost + skillBoost + interestBoost + demandBoost;
+    const score = Math.min(98, Math.max(45, Math.round(rawScore)));
 
     const reasons = [];
-    if (matchedSkills.length) reasons.push(`You already have ${matchedSkills.slice(0, 5).join(', ')}`);
-    if (matchedInterests.length) reasons.push(`Matches your interest in ${matchedInterests.slice(0, 3).join(', ')}`);
-    if (!reasons.length) reasons.push('High-growth field with many entry points for beginners');
-    reasons.push(`Demand is ${career.demand?.toLowerCase?.() || 'steady'} in the market`);
+    if (matchedSkills.length) {
+      reasons.push(`You already have core competencies: ${matchedSkills.slice(0, 4).join(', ')}`);
+    }
+    if (matchedInterests.length) {
+      reasons.push(`Matches your target focus in ${matchedInterests.slice(0, 3).join(', ')}`);
+    }
+    if (tier === 'fresher') {
+      reasons.push('High entry-level hiring pipeline with strong campus and graduate onboarding');
+    } else if (tier === 'mid') {
+      reasons.push(`Calibrated for ${expYrs} year${expYrs > 1 ? 's' : ''} experience with high industry demand`);
+    } else if (tier === 'senior') {
+      reasons.push(`Senior specialist & technical leadership scope (${expYrs} yrs experience)`);
+    } else {
+      reasons.push(`Strategic architecture & organizational leadership scope (${expYrs} yrs experience)`);
+    }
+    reasons.push(`Industry hiring demand is ${career.demand?.toLowerCase?.() || 'steady'} in the market`);
 
     const skillsToLearn = [...careerSkills].filter((s) => !userSkills.has(s)).slice(0, 6);
 
@@ -41,12 +178,37 @@ export function fallbackRecommendations(profile = {}) {
       description: career.description,
       reasons: reasons.slice(0, 4),
       skillsToLearn,
-      salaryRange: career.salaryRange,
+      matchingSkills: matchedSkills,
+      missingCompetencies: skillsToLearn,
+      salaryRange: SALARY_TIERS[career.title]?.[tier] || career.salaryRange,
       demand: career.demand,
+      track: DOMAIN_TRACKS[career.title],
     };
   });
 
-  return scored.sort((a, b) => b.matchScore - a.matchScore).slice(0, 5);
+  scored.sort((a, b) => b.matchScore - a.matchScore);
+
+  // Domain diversity filter: at most 2 from the same domain track in top 5
+  const selected = [];
+  const trackCount = {};
+  for (const item of scored) {
+    const t = item.track || 'Other';
+    if ((trackCount[t] || 0) < 2) {
+      selected.push(item);
+      trackCount[t] = (trackCount[t] || 0) + 1;
+      if (selected.length === 5) break;
+    }
+  }
+  // Ensure exactly 5 items if available
+  if (selected.length < 5) {
+    for (const item of scored) {
+      if (!selected.includes(item)) {
+        selected.push(item);
+        if (selected.length === 5) break;
+      }
+    }
+  }
+  return selected;
 }
 
 const ACTION_VERBS = ['built', 'developed', 'designed', 'led', 'created', 'implemented', 'improved', 'reduced', 'increased', 'launched', 'optimized', 'automated', 'migrated', 'delivered', 'achieved', 'managed', 'analyzed', 'collaborated', 'mentored', 'shipped'];
@@ -122,7 +284,7 @@ export function fallbackResumeAnalysis({ resumeText, profile, roleContext }) {
     weaknesses,
     missingSkills,
     keywords: [...knownSkills].slice(0, 12),
-    suggestedRoles: fallbackRecommendations({ skills: [...knownSkills], interests: profile?.interests, targetRole: roleContext || profile?.targetRole }).map((c) => c.title),
+    suggestedRoles: fallbackRecommendations({ skills: [...knownSkills], interests: profile?.interests, targetRole: roleContext || profile?.targetRole, experienceYears: profile?.experienceYears }).map((c) => c.title),
     rewrittenBullets: weakBullets,
     structuredCandidateProfile: {
       educationalQualifications: profile?.education || [],

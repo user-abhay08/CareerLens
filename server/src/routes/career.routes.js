@@ -11,7 +11,11 @@ const router = Router();
 
 router.post('/recommend', requireAuth, async (req, res, next) => {
   try {
-    const { recommendation, notice } = await recommendCareers({ user: req.user.id });
+    const { experienceYears } = req.body || {};
+    const { recommendation, notice } = await recommendCareers({
+      user: req.user.id,
+      experienceYears: experienceYears !== undefined && experienceYears !== null ? Number(experienceYears) : undefined,
+    });
     res.status(201).json({ recommendation, notice: notice || null });
   } catch (err) {
     next(err);

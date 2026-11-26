@@ -31,6 +31,20 @@ export class JobPosting {
     let sql = 'SELECT * FROM job_postings WHERE is_active = true';
     const params = [];
 
+    // Filter by role / keyword if provided
+    const searchRole = filter.role || filter.searchRole || (typeof filter.title === 'string' ? filter.title : null);
+    if (searchRole && typeof searchRole === 'string' && searchRole.trim()) {
+      const words = searchRole.trim().split(/\s+/).filter((w) => w.length > 2);
+      if (words.length) {
+        const clauses = words.map((w) => {
+          params.push(`%${w}%`);
+          const idx = params.length;
+          return `(title ILIKE $${idx} OR description ILIKE $${idx} OR required_skills::text ILIKE $${idx})`;
+        });
+        sql += ` AND (${clauses.join(' OR ')})`;
+      }
+    }
+
     if (filter.source) {
       if (typeof filter.source === 'string') {
         params.push(filter.source);
